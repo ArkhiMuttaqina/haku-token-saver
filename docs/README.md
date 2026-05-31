@@ -13,7 +13,6 @@
 
 ## Additional notes
 - `adaptation-roadmap.md` — adaptation plan from snip/caveman/rtk
-- `DOC_UPDATE_WORKFLOW.md` — required docs update and LightRAG sync checklist
 
 ## Pack and config files
 - `../packs/*.yaml` — preset packs for git/node/python/docker
