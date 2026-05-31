@@ -1,0 +1,38 @@
+name: python
+description: Enable Python test/lint/typecheck/install/package-inspection filters
+filters:
+  - pytest
+  - ruff
+  - mypy
+  - basedpyright
+  - pip-install
+  - poetry-install
+  - uv-sync
+aliases:
+  - test
+  - lint
+  - check
+  - typecheck
+  - install
+  - sync
+  - package-info
+detect:
+  files:
+    - pyproject.toml
+    - requirements.txt
+    - setup.py
+    - setup.cfg
+    - tox.ini
+    - uv.lock
+    - poetry.lock
+  commands:
+    - python
+    - python3
+    - pytest
+    - ruff
+    - mypy
+    - basedpyright
+    - uv
+    - poetry
+    - pip
+    - pip3

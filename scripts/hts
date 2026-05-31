@@ -1,0 +1,975 @@
+#!/usr/bin/env bash
+# hts — Auto backend wrapper for CLI output compression
+# Backend priority: snip > rtk > raw-limited
+# Usage: hts [options] -- <command>
+# Options:
+#   --which               Show which backend will be used
+#   --dry-run             Show command without executing
+#   --backend auto|snip|rtk|raw  Force backend
+#   --template <name>     Route to caveman_wrapper.sh workflow
+#   --doctor              Run diagnostics and show available packs
+#   --init                Initialize project with auto-detected packs
+# Template aliases: test -> test-results, status -> git-status, log -> git-log, scripts -> npm-scripts
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Try repo-relative paths first, fall back to XDG config if installed
+if [ -d "$SCRIPT_DIR/../config" ] && [ -d "$SCRIPT_DIR/../packs" ]; then
+  REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+  CONFIG_DIR="$REPO_DIR/config"
+  PACKS_DIR="$REPO_DIR/packs"
+else
+  REPO_DIR=""
+  CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver"
+  PACKS_DIR="$CONFIG_DIR/packs"
+fi
+CAVEMAN_WRAPPER="$SCRIPT_DIR/caveman_wrapper.sh"
+FILTER_MAP="$CONFIG_DIR/filter-map.yaml"
+PROJECT_CONFIG="${HTS_PROJECT_CONFIG:-.hts.json}"
+BACKEND_CACHE="${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver/backend"
+mkdir -p "$(dirname "$BACKEND_CACHE")"
+
+# Defaults
+BACKEND="${HAKU_TOKEN_SAVER_BACKEND:-}"
+DRY_RUN=false
+TEMPLATE=""
+WHICH_MODE=false
+DOCTOR_MODE=false
+INIT_MODE=false
+FILTERS_MODE=false
+FILTERS_PATTERN=""
+PACKS_MODE=false
+SYNC_SNIP_MODE=false
+GAIN_MODE=false
+EXPLAIN_MODE=false
+COMPRESS_FILE=""
+COMPRESS_LIMIT="180"
+COMMIT_MODE=""
+COMMIT_STAGED_ONLY=false
+REVIEW_MODE=""
+SYNC_SNIP_FROM="${HTS_SNIP_REF:-/home/arkhi25/Repo/references/agentic/snip}"
+STRICT_MODE="${HAKU_TOKEN_SAVER_STRICT:-false}"
+RAW_MAX_LINES="${HTS_RAW_MAX_LINES:-200}"
+RAW_MAX_BYTES="${HTS_RAW_MAX_BYTES:-20000}"
+NO_LIMIT=false
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --which)
+      WHICH_MODE=true
+      shift
+      ;;
+    --doctor)
+      DOCTOR_MODE=true
+      shift
+      ;;
+    --init)
+      INIT_MODE=true
+      shift
+      ;;
+    --filters)
+      FILTERS_MODE=true
+      if [[ "${2:-}" != --* && "${2:-}" != "" ]]; then
+        FILTERS_PATTERN="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --packs)
+      PACKS_MODE=true
+      shift
+      ;;
+    --sync-snip-filters)
+      SYNC_SNIP_MODE=true
+      if [[ "${2:-}" == --from ]]; then
+        SYNC_SNIP_FROM="$3"
+        shift 3
+      else
+        shift
+      fi
+      ;;
+    --gain)
+      GAIN_MODE=true
+      shift
+      ;;
+    --explain)
+      EXPLAIN_MODE=true
+      shift
+      ;;
+    --compress)
+      COMPRESS_FILE="$2"
+      shift 2
+      ;; 
+    --limit)
+      COMPRESS_LIMIT="$2"
+      shift 2
+      ;;
+    --max-lines)
+      RAW_MAX_LINES="$2"
+      shift 2
+      ;;
+    --max-bytes)
+      RAW_MAX_BYTES="$2"
+      shift 2
+      ;;
+    --no-limit)
+      NO_LIMIT=true
+      shift
+      ;;
+    --commit)
+      COMMIT_MODE="${2:-summary}"
+      if [[ "${2:-}" != "" && "${2:-}" != --* ]]; then
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --staged-only)
+      COMMIT_STAGED_ONLY=true
+      shift
+      ;;
+    --review)
+      REVIEW_MODE="${2:-all}"
+      if [[ "${2:-}" != "" && "${2:-}" != --* ]]; then
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --backend)
+      BACKEND="$2"
+      shift 2
+      ;;
+    --template)
+      TEMPLATE="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    --help|-h)
+      cat <<'EOF'
+hts — Auto backend wrapper for CLI output compression
+
+Usage:
+  hts [options] -- <command>
+  hts --template <name> [options]
+  hts --doctor
+  hts --init
+  hts --filters [pattern]
+  hts --packs
+  hts --sync-snip-filters [--from /path/to/snip]
+  hts --which
+
+Options:
+  --which               Show which backend will be used
+  --doctor              Run diagnostics and show available packs
+  --init                Initialize .hts.json from detected packs
+  --filters [pattern]   List known snip filters from config/synced inventory; optional regex pattern to filter results
+  --packs               List hts packs and their filters
+  --sync-snip-filters   Sync filter inventory from local snip repo
+  --gain                Compare raw vs final output byte count for a command
+  --explain             Print backend/filter/fallback decision without executing command
+  --compress <file>     Compress file content using terse compressor
+  --limit <N>           Set line length limit for --compress (default: 180, min: 20)
+  --max-lines <N>       Raw fallback line cap (default: 200; env: HTS_RAW_MAX_LINES)
+  --max-bytes <N>       Raw fallback byte cap (default: 20000; env: HTS_RAW_MAX_BYTES)
+  --no-limit            Allow unlimited raw fallback output
+  --commit <mode>       Generate commit summary from git diff (summary|full-summary)
+  --staged-only         Use staged changes instead of working-tree diff (for --commit)
+  --review <mode>       Generate review packet: diff|lint|test|all
+  --dry-run             Show command without executing
+  --backend auto|snip|rtk|raw  Force backend (env: HAKU_TOKEN_SAVER_BACKEND)
+  --template <name>     Route to caveman_wrapper.sh workflow
+
+Backends (priority when auto):
+  snip > rtk > raw-limited
+
+Template workflows:
+  git-status, git-log, lint, test-results, npm-scripts
+
+Template aliases:
+  status -> git-status
+  log -> git-log
+  test -> test-results
+  scripts -> npm-scripts
+
+Env:
+  HAKU_TOKEN_SAVER_BACKEND   Override backend selection
+  HAKU_TOKEN_SAVER_STRICT    Fail if selected backend missing (default: false)
+  HTS_RAW_MAX_LINES          Default raw fallback line cap (default: 200)
+  HTS_RAW_MAX_BYTES          Default raw fallback byte cap (default: 20000)
+
+Examples:
+  hts -- git status
+  hts --backend snip -- pytest
+  hts --backend rtk -- npm test
+  hts --template status
+  hts --template lint -- npx eslint src/
+  hts --which
+  hts --dry-run -- git log -20
+  hts --gain -- git log -30
+  hts --explain -- python3 -m pytest
+  hts --filters '^git-'
+  hts --compress README.md --limit 120
+  hts --commit summary
+  hts --commit full-summary --staged-only
+  hts --review all
+  hts --max-lines 100 --max-bytes 10000 -- some-verbose-command
+  hts --no-limit -- git log -50
+EOF
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+detect_backend() {
+  local backend="${1:-}"
+  if [ -n "$backend" ] && [ "$backend" != "auto" ]; then
+    echo "$backend"
+    return
+  fi
+
+  # Check cache first
+  if [ -f "$BACKEND_CACHE" ]; then
+    local cached
+    cached=$(cat "$BACKEND_CACHE")
+    case "$cached" in
+      snip|rtk|raw)
+        echo "$cached"
+        return
+        ;;
+    esac
+  fi
+
+  # Auto detect: snip > rtk > raw-limited
+  if command -v snip >/dev/null 2>&1; then
+    echo "snip"
+  elif command -v rtk >/dev/null 2>&1; then
+    echo "rtk"
+  else
+    echo "raw"
+  fi
+}
+
+backend=$(detect_backend "$BACKEND")
+
+list_filters() {
+  local pattern="${1:-}"
+  local filters=""
+  if [ -d "$SYNC_SNIP_FROM/filters" ]; then
+    filters=$(find "$SYNC_SNIP_FROM/filters" -maxdepth 1 -type f -name '*.yaml' -printf '%f\n' | sed 's/\.yaml$//' | sort)
+  elif [ -f "$CONFIG_DIR/snip-filters.txt" ]; then
+    filters=$(sort "$CONFIG_DIR/snip-filters.txt")
+  elif [ -f "$FILTER_MAP" ]; then
+    filters=$(awk '/snip: \[/{gsub(/.*\[/,""); gsub(/\].*/,""); gsub(/, /,"\n"); print}' "$FILTER_MAP" | sed '/^$/d' | sort -u)
+  else
+    echo "[err] no filter source found" >&2
+    return 1
+  fi
+
+  if [ -n "$pattern" ]; then
+    printf '%s\n' "$filters" | grep -E -- "$pattern" || true
+  else
+    printf '%s\n' "$filters"
+  fi
+}
+
+list_packs() {
+  if [ ! -d "$PACKS_DIR" ]; then
+    echo "[err] packs directory not found: $PACKS_DIR" >&2
+    return 1
+  fi
+  for pack in "$PACKS_DIR"/*.yaml; do
+    [ -f "$pack" ] || continue
+    pack_name=$(basename "$pack" .yaml)
+    pack_desc=$(grep '^description:' "$pack" | sed 's/^description: //')
+    echo "[$pack_name] ${pack_desc:-no description}"
+    awk '
+      /^filters:/ { in_filters=1; next }
+      /^aliases:/ { in_aliases=1; in_filters=0; next }
+      in_filters && /^  - / { sub(/^  - /, "    - "); print }
+      in_aliases && /^  - / { sub(/^  - /, "    alias: "); print }
+    ' "$pack"
+    echo
+  done
+}
+
+sync_snip_filters() {
+  local src="$SYNC_SNIP_FROM/filters"
+  local out="$CONFIG_DIR/snip-filters.txt"
+  if [ ! -d "$src" ]; then
+    echo "[err] snip filters directory not found: $src" >&2
+    return 1
+  fi
+  echo "Syncing snip filters from: $src"
+  find "$src" -maxdepth 1 -type f -name '*.yaml' -printf '%f\n' | sed 's/\.yaml$//' | sort > "$out"
+  count=$(wc -l < "$out" | tr -d ' ')
+  echo "Found $count filters"
+  echo "Wrote: $out"
+  echo "Available filters:"
+  sed 's/^/  - /' "$out"
+}
+
+compress_file() {
+  local file="$1"
+  local limit="${2:-180}"
+  if ! [[ "$limit" =~ ^[0-9]+$ ]] || [ "$limit" -lt 20 ]; then
+    echo "[err] --limit must be an integer >= 20" >&2
+    return 1
+  fi
+  if [ -z "$file" ]; then
+    echo "[err] --compress requires a file path" >&2
+    return 1
+  fi
+  if [ ! -f "$file" ]; then
+    echo "[err] file not found: $file" >&2
+    return 1
+  fi
+  awk -v lim="$limit" '
+    function trim(s){gsub(/^[ \t]+|[ \t]+$/, "", s); return s}
+    BEGIN { blank=0; inblock=0 }
+    /^```/ { print; inblock=!inblock; next }
+    inblock { print; next }
+    /^[[:space:]]*$/ { blank++; if (blank <= 1) print ""; next }
+    {
+      blank=0
+      line=$0
+      gsub(/[[:space:]]+$/, "", line)
+      if (line ~ /^[[:space:]]*#/) { print line; next }
+      if (line ~ /^[[:space:]]*[-*] /) { print trim(line); next }
+      if (length(line) > lim) line=substr(line, 1, lim-3) "..."
+      print line
+    }
+  ' "$file" | sed '/^[[:space:]]*$/N;/^\n$/D'
+}
+
+run_with_backend_capture() {
+  local selected_backend="$1"
+  shift
+  local selected_filter
+  selected_filter="$(normalize_command_for_snip "$@")"
+  case "$selected_backend" in
+    snip)
+      if command -v snip >/dev/null 2>&1; then
+        snip --filter "$selected_filter" -- "$@"
+      else
+        "$@"
+      fi
+      ;;
+    rtk)
+      if command -v rtk >/dev/null 2>&1; then
+        rtk "$@"
+      else
+        "$@"
+      fi
+      ;;
+    raw)
+      "$@"
+      ;;
+    *)
+      echo "[err] Unknown backend: $selected_backend" >&2
+      return 1
+      ;;
+  esac
+}
+
+run_command_capture_preserve_exit() {
+  local tmp
+  tmp="$(mktemp)"
+  set +e
+  "$@" >"$tmp" 2>&1
+  local status=$?
+  set -e
+  cat "$tmp"
+  rm -f "$tmp"
+  return "$status"
+}
+
+run_with_limited_raw() {
+  local max_lines="${1:-200}"
+  local max_bytes="${2:-20000}"
+  shift 2
+  local output
+  output="$("$@" 2>&1 || true)"
+  local raw_bytes raw_lines shown_bytes shown_lines truncated
+  raw_bytes=$(printf '%s' "$output" | wc -c | tr -d ' ')
+  raw_lines=$(printf '%s' "$output" | wc -l | tr -d ' ')
+  
+  if [ "$NO_LIMIT" = true ]; then
+    printf '%s\n' "$output"
+    return 0
+  fi
+  
+  shown_lines=0
+  shown_bytes=0
+  truncated=false
+  local line_len byte_counter=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line_len=${#line}
+    byte_counter=$((byte_counter + line_len + 1))
+    if [ "$byte_counter" -gt "$max_bytes" ]; then
+      truncated=true
+      break
+    fi
+    shown_lines=$((shown_lines + 1))
+    if [ "$shown_lines" -gt "$max_lines" ]; then
+      truncated=true
+      break
+    fi
+    printf '%s\n' "$line"
+  done <<< "$output"
+  
+  shown_bytes=$byte_counter
+  
+  printf '[hts-fallback]\n'
+  printf 'backend=raw\n'
+  printf 'mode=raw-limited\n'
+  printf 'reason=no_filter_found\n'
+  printf 'raw_bytes=%d\n' "$raw_bytes"
+  printf 'output_bytes=%d\n' "$shown_bytes"
+  printf 'bytes_saved=%d\n' $((raw_bytes - shown_bytes))
+  if [ "$raw_bytes" -gt 0 ]; then
+    awk -v raw="$raw_bytes" -v out="$shown_bytes" 'BEGIN {printf "percent_saved=%.2f\n", (raw - out) * 100 / raw}'
+  else
+    printf 'percent_saved=0.00\n'
+  fi
+  printf 'raw_lines=%d\n' "$raw_lines"
+  printf 'output_lines=%d\n' "$shown_lines"
+  if [ "$truncated" = true ]; then
+    printf 'truncated=true\n'
+    printf 'hint=rerun with --no-limit or --backend raw for exact output\n'
+  else
+    printf 'truncated=false\n'
+  fi
+}
+
+repo_dirty_files() {
+  git diff --name-only 2>/dev/null || true
+}
+
+repo_staged_files() {
+  git diff --cached --name-only 2>/dev/null || true
+}
+
+summarize_commit() {
+  local mode="$1"
+  local staged_only="${2:-false}"
+  local diff_cmd names_cmd scope_label
+  local staged_count dirty_count stat_output names_output patch_output
+
+  if [ "$staged_only" = true ]; then
+    diff_cmd=(git diff --cached --minimal -- . ':(exclude)config/snip-filters.txt')
+    names_cmd='repo_staged_files'
+    scope_label='staged'
+  else
+    diff_cmd=(git diff --minimal -- . ':(exclude)config/snip-filters.txt')
+    names_cmd='repo_dirty_files'
+    scope_label='working-tree'
+  fi
+
+  staged_count=$(repo_staged_files | sed '/^$/d' | wc -l | tr -d ' ')
+  dirty_count=$(repo_dirty_files | sed '/^$/d' | wc -l | tr -d ' ')
+  stat_output=$("${diff_cmd[@]}" --stat 2>/dev/null || true)
+  names_output=$($names_cmd | sed '/^$/d' | head -20)
+  patch_output=$("${diff_cmd[@]}" --unified=0 --no-color 2>/dev/null || true)
+
+  echo "type=commit-summary"
+  echo "mode=${mode:-summary}"
+  echo "scope=$scope_label"
+  echo "staged_only=$staged_only"
+  echo "staged_files=$staged_count"
+  echo "dirty_files=$dirty_count"
+  echo ""
+  echo "[stat]"
+  if [ -n "$stat_output" ]; then
+    printf '%s\n' "$stat_output"
+  else
+    echo "no diff stat"
+  fi
+  echo ""
+  echo "[files]"
+  if [ -n "$names_output" ]; then
+    printf '%s\n' "$names_output"
+  else
+    echo "clean"
+  fi
+
+  if [ "$mode" = "full-summary" ]; then
+    echo ""
+    echo "[patch]"
+    if [ -n "$patch_output" ]; then
+      printf '%s\n' "$patch_output" | awk 'NR<=220{print} NR==221{print "... [truncated]"; exit}'
+    else
+      echo "no patch"
+    fi
+  fi
+}
+
+review_repo() {
+  local mode="$1"
+  local diff_output lint_output test_output
+  echo "type=review"
+  echo "mode=${mode:-all}"
+
+  if [ "$mode" = "diff" ] || [ "$mode" = "all" ]; then
+    echo ""
+    echo "[diff]"
+    diff_output=$(git diff --stat -- . ':(exclude)config/snip-filters.txt' 2>/dev/null || true)
+    if [ -n "$diff_output" ]; then
+      printf '%s\n' "$diff_output"
+    else
+      echo "clean"
+    fi
+  fi
+
+  if [ "$mode" = "lint" ] || [ "$mode" = "all" ]; then
+    echo ""
+    echo "[lint]"
+    if [ -f package.json ]; then
+      lint_output=$(npm run -s lint 2>&1 || true)
+      printf '%s\n' "$lint_output" | awk 'NR<=120{print} NR==121{print "... [truncated]"; exit}'
+    elif [ -f pyproject.toml ] && command -v ruff >/dev/null 2>&1; then
+      lint_output=$(ruff check . 2>&1 || true)
+      printf '%s\n' "$lint_output" | awk 'NR<=120{print} NR==121{print "... [truncated]"; exit}'
+    else
+      echo "no supported lint target detected"
+    fi
+  fi
+
+  if [ "$mode" = "test" ] || [ "$mode" = "all" ]; then
+    echo ""
+    echo "[test]"
+    if [ -f package.json ]; then
+      test_output=$(npm test -- --runInBand 2>&1 || true)
+      printf '%s\n' "$test_output" | awk 'NR<=120{print} NR==121{print "... [truncated]"; exit}'
+    elif [ -f pyproject.toml ] && command -v pytest >/dev/null 2>&1; then
+      test_output=$(pytest 2>&1 || true)
+      printf '%s\n' "$test_output" | awk 'NR<=120{print} NR==121{print "... [truncated]"; exit}'
+    else
+      echo "no supported test target detected"
+    fi
+  fi
+}
+
+if [ "$WHICH_MODE" = true ]; then
+  echo "Backend: $backend"
+  if [ "$backend" != "raw" ]; then
+    if [ "$backend" = "snip" ]; then
+      command -v snip
+    elif [ "$backend" = "rtk" ]; then
+      command -v rtk
+    fi
+  fi
+  exit 0
+fi
+
+# Doctor mode
+if [ "$DOCTOR_MODE" = true ]; then
+  echo "🩺 hts Doctor"
+  echo ""
+  echo "Backend:"
+  if command -v snip >/dev/null 2>&1; then
+    echo "  ✓ snip available at $(command -v snip)"
+  else
+    echo "  ✗ snip not found"
+  fi
+  if command -v rtk >/dev/null 2>&1; then
+    echo "  ✓ rtk available at $(command -v rtk)"
+  else
+    echo "  ✗ rtk not found"
+  fi
+  echo "  Current cache: ${BACKEND_CACHE:-none}"
+  if [ -f "$BACKEND_CACHE" ]; then
+    echo "  Cached backend: $(cat "$BACKEND_CACHE")"
+  fi
+  echo ""
+  echo "Configuration:"
+  echo "  Config dir: $CONFIG_DIR"
+  echo "  Packs dir: $PACKS_DIR"
+  if [ -f "$FILTER_MAP" ]; then
+    echo "  ✓ filter-map.yaml found"
+  else
+    echo "  ✗ filter-map.yaml missing"
+  fi
+  echo ""
+  echo "Available packs:"
+  if [ -d "$PACKS_DIR" ]; then
+    for pack in "$PACKS_DIR"/*.yaml; do
+      if [ -f "$pack" ]; then
+        pack_name=$(basename "$pack" .yaml)
+        pack_desc=$(grep "^description:" "$pack" 2>/dev/null | cut -d' ' -f2-)
+        echo "  - $pack_name: ${pack_desc:-no description}"
+      fi
+    done
+  else
+    echo "  ✗ packs directory not found"
+  fi
+  echo ""
+  echo "Project config:"
+  if [ -f "$PROJECT_CONFIG" ]; then
+    echo "  ✓ .hts.json found"
+  else
+    echo "  ✗ .hts.json not found (run 'hts --init' to create)"
+  fi
+  exit 0
+fi
+
+# Init mode
+if [ "$INIT_MODE" = true ]; then
+  echo "🔧 hts Init"
+  echo ""
+  if [ ! -d "$PACKS_DIR" ]; then
+    echo "[err] packs directory not found: $PACKS_DIR" >&2
+    exit 1
+  fi
+  echo "Detecting project packs..."
+  detected_packs=()
+  has_git=false has_node=false has_python=false has_docker=false
+
+  # File detection
+  [ -d .git ] && has_git=true
+  [ -f package.json ] && has_node=true
+  [ -f pyproject.toml ] && has_python=true
+  [ -f requirements.txt ] && has_python=true
+  [ -f Dockerfile ] && has_docker=true
+  [ -f docker-compose.yml ] && has_docker=true
+  [ -f docker-compose.yaml ] && has_docker=true
+
+  # Command detection (optional)
+  command -v git >/dev/null 2>&1 && has_git=true
+  command -v npm >/dev/null 2>&1 && has_node=true
+  command -v pnpm >/dev/null 2>&1 && has_node=true
+  command -v yarn >/dev/null 2>&1 && has_node=true
+  command -v python >/dev/null 2>&1 && has_python=true
+  command -v pytest >/dev/null 2>&1 && has_python=true
+  command -v docker >/dev/null 2>&1 && has_docker=true
+
+  if [ "$has_git" = true ]; then
+    detected_packs+=("git")
+    echo "  ✓ git detected"
+  fi
+  if [ "$has_node" = true ]; then
+    detected_packs+=("node")
+    echo "  ✓ node detected"
+  fi
+  if [ "$has_python" = true ]; then
+    detected_packs+=("python")
+    echo "  ✓ python detected"
+  fi
+  if [ "$has_docker" = true ]; then
+    detected_packs+=("docker")
+    echo "  ✓ docker detected"
+  fi
+
+  if [ ${#detected_packs[@]} -eq 0 ]; then
+    echo "  No packs detected for current directory"
+    echo ""
+    echo "Enabling default pack: git"
+    detected_packs+=("git")
+  fi
+
+  echo ""
+  echo "Writing .hts.json..."
+  packs_json="["
+  first=true
+  for pack in "${detected_packs[@]}"; do
+    if [ "$first" = true ]; then
+      packs_json+='"'"$pack"'"'
+      first=false
+    else
+      packs_json+=', "'"$pack"'"'
+    fi
+  done
+  packs_json+="]"
+
+  cat > "$PROJECT_CONFIG" <<EOF
+{
+  "packs": $packs_json,
+  "backend": "auto",
+  "created": "$(date -Iseconds)"
+}
+EOF
+
+  echo "  ✓ .hts.json created with packs: ${detected_packs[*]}"
+  echo ""
+  echo "Next steps:"
+  echo "  hts --doctor      # Verify setup"
+  echo "  hts -- git status # Try a git command"
+  exit 0
+fi
+
+# Filters mode
+if [ "$FILTERS_MODE" = true ]; then
+  list_filters "$FILTERS_PATTERN"
+  exit 0
+fi
+
+# Packs mode
+if [ "$PACKS_MODE" = true ]; then
+  list_packs
+  exit 0
+fi
+
+# Sync snip filters mode
+if [ "$SYNC_SNIP_MODE" = true ]; then
+  sync_snip_filters
+  exit 0
+fi
+
+normalize_template() {
+  case "$1" in
+    status) echo "git-status" ;;
+    log) echo "git-log" ;;
+    test) echo "test-results" ;;
+    scripts) echo "npm-scripts" ;;
+    git-status|git-log|lint|test-results|npm-scripts) echo "$1" ;;
+    *) echo "" ;;
+  esac
+}
+
+# Template mode: route to caveman_wrapper.sh
+if [ -n "$TEMPLATE" ]; then
+  TEMPLATE_NORMALIZED=$(normalize_template "$TEMPLATE")
+  if [ -z "$TEMPLATE_NORMALIZED" ]; then
+    echo "[err] Unknown template: $TEMPLATE" >&2
+    echo "Available templates: git-status, git-log, lint, test-results, npm-scripts" >&2
+    echo "Aliases: status, log, test, scripts" >&2
+    exit 1
+  fi
+
+  if [ ! -x "$CAVEMAN_WRAPPER" ]; then
+    echo "[err] caveman_wrapper.sh not found or not executable" >&2
+    exit 1
+  fi
+
+  if [ "$DRY_RUN" = true ]; then
+    echo "[dry-run] $CAVEMAN_WRAPPER $TEMPLATE_NORMALIZED $*"
+    exit 0
+  fi
+
+  exec "$CAVEMAN_WRAPPER" "$TEMPLATE_NORMALIZED" "$@"
+fi
+
+# Commit mode
+if [ -n "$COMMIT_MODE" ]; then
+  summarize_commit "$COMMIT_MODE" "$COMMIT_STAGED_ONLY"
+  exit 0
+fi
+
+# Review mode
+if [ -n "$REVIEW_MODE" ]; then
+  review_repo "$REVIEW_MODE"
+  exit 0
+fi
+
+# Compress mode
+if [ -n "$COMPRESS_FILE" ]; then
+  if [ "$DRY_RUN" = true ]; then
+    echo "[dry-run] compress file=$COMPRESS_FILE limit=$COMPRESS_LIMIT"
+    exit 0
+  fi
+  compress_file "$COMPRESS_FILE" "$COMPRESS_LIMIT"
+  exit 0
+fi
+
+# No command?
+if [ $# -eq 0 ]; then
+  echo "[err] No command provided. Use -- to separate options." >&2
+  echo "Example: hts -- git status" >&2
+  exit 1
+fi
+
+normalize_command_for_snip() {
+  local cmd="$1"
+  local subcmd="${2:-}"
+  case "$cmd" in
+    git)
+      case "$subcmd" in
+        status) echo "git-status" ;;
+        log) echo "git-log" ;;
+        diff) echo "git-diff" ;;
+        show) echo "git-show" ;;
+        push) echo "git-push" ;;
+        pull) echo "git-pull" ;;
+        fetch) echo "git-fetch" ;;
+        stash) echo "git-stash" ;;
+        branch) echo "git-branch" ;;
+        commit) echo "git-commit" ;;
+        *) echo "git-$subcmd" ;;
+      esac
+      ;;
+    npm|pnpm|yarn)
+      case "$subcmd" in
+        test) echo "vitest" ;;
+        run) echo "${3:-$cmd}" ;;
+        install|i|add) echo "$cmd-install" ;;
+        list|ls) echo "pnpm-list" ;;
+        *) echo "$cmd-$subcmd" ;;
+      esac
+      ;;
+    npx)
+      echo "$subcmd"
+      ;;
+    python)
+      case "$subcmd" in
+        -m) echo "${3:-python}" ;;
+        *) echo "python" ;;
+      esac
+      ;;
+    docker)
+      case "$subcmd" in
+        ps) echo "docker-ps" ;;
+        logs) echo "docker-logs" ;;
+        build) echo "docker-build" ;;
+        images) echo "docker-images" ;;
+        compose) echo "docker-compose" ;;
+        *) echo "docker-$subcmd" ;;
+      esac
+      ;;
+    kubectl)
+      case "$subcmd" in
+        logs) echo "kubectl-logs" ;;
+        get) echo "kubectl-get" ;;
+        *) echo "kubectl-$subcmd" ;;
+      esac
+      ;;
+    gh)
+      case "$subcmd" in
+        pr) echo "gh-pr" ;;
+        issue) echo "gh-issue" ;;
+        run) echo "gh-run" ;;
+        *) echo "gh-$subcmd" ;;
+      esac
+      ;;
+    pytest|vitest|jest|eslint|ruff|mypy|shellcheck|terraform|tofu|jq|rg|grep|find|tree)
+      echo "$cmd"
+      ;;
+    *)
+      echo "$cmd"
+      ;;
+  esac
+}
+
+SNIP_FILTER="$(normalize_command_for_snip "$@")"
+ORIGINAL_BACKEND="$backend"
+FALLBACK_REASON=""
+
+# Build command with backend
+if [ "$backend" = "snip" ]; then
+  if ! command -v snip >/dev/null 2>&1; then
+    if [ "$STRICT_MODE" = true ]; then
+      echo "[err] snip not found and strict mode enabled" >&2
+      exit 1
+    fi
+    # Fallback to rtk if not strict
+    if command -v rtk >/dev/null 2>&1; then
+      backend="rtk"
+      FALLBACK_REASON="snip_missing_fallback_to_rtk"
+    else
+      backend="raw"
+      FALLBACK_REASON="snip_and_rtk_missing_fallback_to_raw"
+    fi
+  fi
+fi
+
+if [ "$backend" = "rtk" ]; then
+  if ! command -v rtk >/dev/null 2>&1; then
+    if [ "$STRICT_MODE" = true ]; then
+      echo "[err] rtk not found and strict mode enabled" >&2
+      exit 1
+    fi
+    backend="raw"
+    FALLBACK_REASON="rtk_missing_fallback_to_raw"
+  fi
+fi
+
+# Explain mode
+if [ "$EXPLAIN_MODE" = true ]; then
+  cat <<EOF
+[hts-route]
+command=$1
+filter=${SNIP_FILTER:-none}
+original_backend=$ORIGINAL_BACKEND
+selected_backend=$backend
+fallback_reason=${FALLBACK_REASON:-none}
+no_limit=$NO_LIMIT
+raw_max_lines=$RAW_MAX_LINES
+raw_max_bytes=$RAW_MAX_BYTES
+EOF
+  exit 0
+fi
+
+if [ "$DRY_RUN" = true ]; then
+  echo "[dry-run] backend=$backend"
+  if [ "$backend" = "snip" ]; then
+    echo "snip $*"
+  elif [ "$backend" = "rtk" ]; then
+    echo "rtk $*"
+  else
+    echo "$*"
+  fi
+  exit 0
+fi
+
+if [ "$GAIN_MODE" = true ]; then
+  set +e
+  raw_output=$(run_command_capture_preserve_exit "$@")
+  raw_status=$?
+  set -e
+  if [ "$backend" = "raw" ]; then
+    filtered_output=$(run_with_limited_raw "$RAW_MAX_LINES" "$RAW_MAX_BYTES" "$@" 2>&1 || true)
+    mode="raw-limited"
+  else
+    filtered_output=$(run_with_backend_capture "$backend" "$@" 2>&1 || true)
+    mode="semantic-filter"
+  fi
+  raw_bytes=$(printf '%s' "$raw_output" | wc -c | tr -d ' ')
+  filtered_bytes=$(printf '%s' "$filtered_output" | wc -c | tr -d ' ')
+  savings=$((raw_bytes - filtered_bytes))
+  printf '%s\n' "backend=$backend"
+  printf '%s\n' "mode=$mode"
+  printf '%s\n' "filter=${SNIP_FILTER:-$1}"
+  printf '%s\n' "fallback_reason=${FALLBACK_REASON:-none}"
+  printf '%s\n' "exit_code=$raw_status"
+  printf '%s\n' "raw_bytes=$raw_bytes"
+  printf '%s\n' "output_bytes=$filtered_bytes"
+  printf '%s\n' "bytes_saved=$savings"
+  if [ "$raw_bytes" -gt 0 ]; then
+    awk -v raw="$raw_bytes" -v out="$filtered_bytes" 'BEGIN {printf "percent_saved=%.2f\n", (raw - out) * 100 / raw}'
+  else
+    printf '%s\n' "percent_saved=0.00"
+  fi
+  exit 0
+fi
+
+# Execute
+case "$backend" in
+  snip)
+    exec snip "$@"
+    ;;
+  rtk)
+    exec rtk "$@"
+    ;;
+  raw)
+    if [ "$NO_LIMIT" = true ]; then
+      exec "$@"
+    fi
+    run_with_limited_raw "$RAW_MAX_LINES" "$RAW_MAX_BYTES" "$@"
+    ;;
+  *)
+    echo "[err] Unknown backend: $backend" >&2
+    exit 1
+    ;;
+esac

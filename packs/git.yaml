@@ -1,0 +1,29 @@
+name: git
+description: Enable git-focused templates and snip filters
+filters:
+  - git-status
+  - git-log
+  - git-diff
+  - git-show
+  - git-push
+  - git-pull
+  - git-fetch
+  - git-stash
+  - git-branch
+  - git-commit
+aliases:
+  - status
+  - log
+  - diff
+  - show
+  - push
+  - pull
+  - fetch
+  - stash
+  - branch
+  - commit
+detect:
+  files:
+    - .git
+  commands:
+    - git

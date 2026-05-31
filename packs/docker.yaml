@@ -1,0 +1,28 @@
+name: docker
+description: Enable container and infra-adjacent filters
+filters:
+  - docker-ps
+  - docker-logs
+  - docker-build
+  - docker-images
+  - docker-compose
+  - kubectl-logs
+  - kubectl-get
+aliases:
+  - ps
+  - logs
+  - build-docker
+  - images
+  - compose
+  - k8s-get
+detect:
+  files:
+    - Dockerfile
+    - docker-compose.yml
+    - docker-compose.yaml
+    - compose.yaml
+    - .dockerignore
+  commands:
+    - docker
+    - docker-compose
+    - kubectl

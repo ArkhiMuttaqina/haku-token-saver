@@ -1,0 +1,21 @@
+name: go
+description: Enable Go test/lint/check/build filters
+filters:
+  - go-test
+  - go-vet
+  - go-build
+  - golangci-lint
+aliases:
+  - test
+  - lint
+  - check
+  - build
+detect:
+  files:
+    - go.mod
+    - go.sum
+    - main.go
+    - Makefile
+  commands:
+    - go
+    - golangci-lint

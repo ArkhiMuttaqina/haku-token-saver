@@ -1,0 +1,40 @@
+# Secrets & Credentials
+*.key
+*.pem
+*.env
+*.env.*
+token.pickle
+google_token.json
+*credentials.json
+
+# Personal Data
+**/Finance/Transactions.md
+**/Finance/Ledger.md
+**/Finance/Budget.md
+
+# System Files
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/
+
+# Runtime
+__pycache__/
+node_modules/
+tmp/
+.cache/
+
+# OS Specific
+.AppleDouble
+.LSOverride
+Icon
+._*
+Desktop.ini
+Thumbs.db
+
+# Keep templates
+!templates/*.txt
+!docs/**/*.md
+!config/*.md
+!skills/**/SKILL.md

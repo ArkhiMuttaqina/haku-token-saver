@@ -1,0 +1,4 @@
+Recent Commits:
+{{- for d.commits as commit }}
+  {{commit.hash}} {{commit.date}} {{commit.message}}
+{{- end }}
