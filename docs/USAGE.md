@@ -4,6 +4,36 @@
 
 Use it when command output is too verbose for an AI coding agent.
 
+
+---
+
+## Install and agent setup
+
+### Shell install
+
+```bash
+git clone git@github.com:ArkhiMuttaqina/haku-token-saver.git
+cd haku-token-saver
+./install.sh --install-deps
+hts --doctor
+```
+
+The installer installs or verifies `snip`, `rtk`, and `caveman`. If none are available, `hts` falls back to bounded `raw-limited` output.
+
+### Prompt install
+
+Paste into Hermes, OpenClaw, Codex, Claude Code, Antigravity, Gemini CLI, Cursor, or any shell-capable CLI agent:
+
+```text
+Install HTS. Clone https://github.com/ArkhiMuttaqina/haku-token-saver.git, run ./install.sh --install-deps, ensure ~/.local/bin is on PATH, verify with hts --doctor and hts --which, then use hts as the default observation interface for verbose CLI output. Use raw terminal for mutation, install, deploy, interactive, or exact-output tasks.
+```
+
+### Agent rule
+
+```markdown
+Use `hts` as the default interface for verbose terminal inspection. Prefer `hts -- <command>` or hts workflow commands before raw `git diff`, `git log`, tests, lint, build output, docker logs, or kubectl logs. Use raw terminal for mutation, install, deploy, interactive, or exact-output tasks. After mutation, summarize with `hts` when output is large.
+```
+
 ---
 
 ## Mental model

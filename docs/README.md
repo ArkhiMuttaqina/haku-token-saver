@@ -11,17 +11,12 @@
 - `snip-integration.md` — snip backend integration notes
 - `caveman-adaptation.md` — caveman workflow adaptation notes
 
-## Phase 4A additions
+## Additional notes
+- `adaptation-roadmap.md` — adaptation plan from snip/caveman/rtk
+
+## Pack and config files
 - `../packs/*.yaml` — preset packs for git/node/python/docker
 - `../config/filter-map.yaml` — alias and command-family mapping
-- `../scripts/hts` — doctor/init + snip-aware routing
-
-## Phase 4C additions
-- `adaptation-roadmap.md` — adaptation plan from snip/caveman/rtk
-- `phase-4c-p1.md` — implemented P1 commands (`--filters`, `--packs`, `--sync-snip-filters`)
-- `phase-4c-p2.md` — implemented P2 commands (`--gain`, `--compress`)
-- `phase-4c-p3.md` — implemented P3 commands (`--commit`, `--review`)
-- `phase-4c-p4.md` — implemented P4 refinements (`--filters [pattern]`, `--staged-only`, `--limit`)
 - `../config/snip-filters.txt` — synced snip filter inventory
 
 ## Recommended reading order

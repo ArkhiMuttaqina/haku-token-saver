@@ -33,6 +33,9 @@ Icon
 Desktop.ini
 Thumbs.db
 
+# Local development notes for agents
+.hermes/
+
 # Keep templates
 !templates/*.txt
 !docs/**/*.md

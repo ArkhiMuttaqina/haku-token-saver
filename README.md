@@ -131,54 +131,68 @@ Use raw terminal for actions/mutations or when exact output is required.
 
 ---
 
-## Quick start
+## Install HTS
 
-### 1) Install optional backends
+The installer installs `hts` and automatically installs or verifies its backends:
 
-`hts` works in `raw` mode without them, but token reduction is much better with `snip` and/or `rtk`.
-
-#### snip
-
-```bash
-cargo install snip
-# or
-brew install edouard-claude/tap/snip
-# or
-curl -fsSL https://raw.githubusercontent.com/edouard-claude/snip/master/install.sh | sh
+```text
+snip > rtk > raw-limited
 ```
 
-#### rtk
+It also handles `caveman` template support and creates a `caveman` shim when the npm package does not expose a binary.
+
+### Shell install
 
 ```bash
-brew install rtk
-# or
-curl -fsSL https://raw.githubusercontent.com/Hashiru/rtk/refs/heads/master/install.sh | sh
-# or
-cargo install --git https://github.com/Hashiru/rtk
-```
-
-#### caveman
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/juliusbrussee/caveman/main/install.sh | bash
-```
-
-### 2) Install this repo
-
-```bash
-git clone https://github.com/arkhimut/haku-token-saver.git
+git clone git@github.com:ArkhiMuttaqina/haku-token-saver.git
 cd haku-token-saver
-./install.sh
+./install.sh --install-deps
+hts --doctor
 ```
 
-### 3) Verify
+HTTPS clone:
+
+```bash
+git clone https://github.com/ArkhiMuttaqina/haku-token-saver.git
+cd haku-token-saver
+./install.sh --install-deps
+hts --doctor
+```
+
+`--install-deps` is the expected default workflow. It attempts to install:
+
+- `snip`
+- `rtk`
+- `caveman`
+
+If a backend is unavailable, `hts` still works through `raw-limited` bounded output.
+
+### Prompt install for AI agents
+
+Paste this into Hermes, OpenClaw, Codex, Claude Code, Antigravity, Gemini CLI, Cursor, or another shell-capable coding agent:
+
+```text
+Install HTS for this environment. Clone https://github.com/ArkhiMuttaqina/haku-token-saver.git, run ./install.sh --install-deps, ensure ~/.local/bin is on PATH, then verify with hts --doctor and hts --which. After install, use hts as the default observation interface for verbose terminal output: git status/log/diff, tests, lint, build output, docker logs, and kubectl logs. Use raw terminal only for mutation, install, deploy, interactive, or exact-output tasks.
+```
+
+### Agent adaptation rule
+
+Add this to project instructions for Hermes/OpenClaw/Codex/Claude Code/Antigravity/Gemini CLI/Cursor/general terminal agents:
+
+```markdown
+Use `hts` as the default interface for verbose terminal inspection. Prefer `hts -- <command>` or hts workflow commands before raw `git diff`, `git log`, tests, lint, build output, docker logs, or kubectl logs. Use raw terminal for mutation, install, deploy, interactive, or exact-output tasks. After mutation, summarize with `hts` when output is large.
+```
+
+### Verify
 
 ```bash
 hts --which
 hts --doctor
+hts --packs
+hts --filters '^git-'
 ```
 
-### 4) Initialize per project
+### Initialize per project
 
 ```bash
 cd your-project
