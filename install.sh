@@ -14,6 +14,7 @@ WITH_SHELL_PROFILE=false
 DRY_RUN=false
 BACKEND="auto"
 INSTALL_DEPS=true
+UNINSTALL=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-deps)
       INSTALL_DEPS=false
+      shift
+      ;;
+    --uninstall)
+      UNINSTALL=true
       shift
       ;;
     *)
@@ -68,7 +73,21 @@ run_cmd() {
     echo "[dry-run] $*"
     return 0
   fi
-  eval "$@"
+  "$@"
+}
+
+remove_path() {
+  local path="$1"
+  if [ -e "$path" ] || [ -L "$path" ]; then
+    if [ "$DRY_RUN" = true ]; then
+      echo "[dry-run] rm -rf $path"
+    else
+      rm -rf "$path"
+    fi
+    ok "removed $path"
+  else
+    info "already absent: $path"
+  fi
 }
 
 detect_backend() {
@@ -96,11 +115,11 @@ install_snip() {
 
   info "installing snip"
   if command -v brew >/dev/null 2>&1; then
-    run_cmd "brew install edouard-claude/tap/snip"
+    run_cmd brew install edouard-claude/tap/snip
   elif command -v go >/dev/null 2>&1; then
-    run_cmd "go install github.com/edouard-claude/snip/cmd/snip@latest"
+    run_cmd go install github.com/edouard-claude/snip/cmd/snip@latest
   elif command -v curl >/dev/null 2>&1; then
-    run_cmd "curl -fsSL https://raw.githubusercontent.com/edouard-claude/snip/master/install.sh | sh"
+    run_cmd sh -c 'curl -fsSL https://raw.githubusercontent.com/edouard-claude/snip/master/install.sh | sh'
   else
     fail "cannot install snip automatically; install brew, go, or curl, then rerun"
   fi
@@ -132,13 +151,13 @@ install_node_tools() {
   npm_bin=""
   if [ -n "$npm_prefix" ] && [ -w "$npm_prefix" ]; then
     info "installing npm tools globally: ${missing[*]}"
-    run_cmd "npm install -g ${missing[*]}"
+    run_cmd npm install -g "${missing[@]}"
   else
     npm_prefix="$HOME/.local"
     npm_bin="$npm_prefix/bin"
     info "npm global prefix is not writable; installing npm tools under $npm_prefix"
-    run_cmd "mkdir -p '$npm_bin'"
-    run_cmd "npm install -g --prefix '$npm_prefix' ${missing[*]}"
+    run_cmd mkdir -p "$npm_bin"
+    run_cmd npm install -g --prefix "$npm_prefix" "${missing[@]}"
     case ":$PATH:" in
       *":$npm_bin:"*) ;;
       *) warn "$npm_bin is not on PATH; add it to use caveman/rtk directly" ;;
@@ -251,8 +270,17 @@ install_skills() {
   dry_echo "mkdir -p \"$HERMES_DIR/skills/development\""
   [ "$DRY_RUN" = true ] || mkdir -p "$HERMES_DIR/skills/development"
 
-  dry_echo "cp -R \"$SCRIPT_DIR/skills/development/\"* \"$HERMES_DIR/skills/development/\""
-  [ "$DRY_RUN" = true ] || cp -R "$SCRIPT_DIR/skills/development/"* "$HERMES_DIR/skills/development/"
+  if [ -d "$SCRIPT_DIR/skills/development" ]; then
+    dry_echo "cp -R \"$SCRIPT_DIR/skills/development/\"* \"$HERMES_DIR/skills/development/\""
+    [ "$DRY_RUN" = true ] || cp -R "$SCRIPT_DIR/skills/development/"* "$HERMES_DIR/skills/development/"
+  fi
+
+  for skill_dir in "$SCRIPT_DIR"/skills/*; do
+    [ -d "$skill_dir" ] || continue
+    [ "$(basename "$skill_dir")" = "development" ] && continue
+    dry_echo "cp -R \"$skill_dir\" \"$HERMES_DIR/skills/development/\""
+    [ "$DRY_RUN" = true ] || cp -R "$skill_dir" "$HERMES_DIR/skills/development/"
+  done
 
   ok "development skills installed"
 }
@@ -358,11 +386,49 @@ verify() {
     [ -x "$BIN_DIR/caveman_wrapper.sh" ] || fail "missing wrapper"
     [ -f "$TEMPLATES_DIR/git_status.txt" ] || fail "missing templates"
     [ -f "$CLAUDE_DIR/CLAUDE.md" ] || fail "missing CLAUDE.md"
+    "$BIN_DIR/hts" --doctor >/dev/null 2>&1 || fail "hts --doctor failed"
+    "$BIN_DIR/hts" --packs >/dev/null 2>&1 || fail "hts --packs failed"
+    "$BIN_DIR/hts" --filters '^git-' >/dev/null 2>&1 || fail "hts --filters failed"
   fi
   ok "install verified"
 }
 
+uninstall() {
+  info "uninstalling Haku Token Saver artifacts"
+
+  remove_path "$BIN_DIR/hts"
+  remove_path "$BIN_DIR/caveman_wrapper.sh"
+  remove_path "$BIN_DIR/verify_caveman_setup.sh"
+  remove_path "$BIN_DIR/demo_token_savings.sh"
+
+  remove_path "$TEMPLATES_DIR/git_status.txt"
+  remove_path "$TEMPLATES_DIR/git_log.txt"
+  remove_path "$TEMPLATES_DIR/lint_results.txt"
+  remove_path "$TEMPLATES_DIR/test_results.txt"
+
+  remove_path "$CONFIG_DIR"
+
+  remove_path "$HERMES_DIR/skills/development/hts-token-saver"
+  remove_path "$HERMES_DIR/skills/development/hts-orchestrator"
+  remove_path "$HERMES_DIR/skills/development/hts-cli-workflow"
+  remove_path "$HERMES_DIR/skills/development/token-saving-cli-workflow"
+  remove_path "$HERMES_DIR/skills/development/context-optimization"
+  remove_path "$HERMES_DIR/skills/development/caveman-rtk-integration"
+
+  printf '\nManual cleanup note:\n'
+  printf '  Remove old shell aliases from ~/.zshrc if you added them with --with-shell-profile.\n'
+  printf '  Look for the block between:\n'
+  printf '    # Haku Token Saver Aliases\n'
+  printf '    # End Haku Token Saver Aliases\n\n'
+  ok "uninstall completed"
+}
+
 main() {
+  if [ "$UNINSTALL" = true ]; then
+    uninstall
+    return 0
+  fi
+
   info "installing Haku Token Saver"
   [ "$DRY_RUN" = true ] && info "(dry run mode)"
 
@@ -387,7 +453,7 @@ main() {
   printf '  1. Source shell: source ~/.zshrc\n'
   printf '  2. Verify: verify-token-saver\n'
   printf '  3. Test: hts --which\n'
-  printf '  4. Run: hts git status\n'
+  printf '  4. Run: hts -- git status\n'
   printf '\nBackend tools installed:\n'
   command -v snip >/dev/null 2>&1 || [ -x "$HOME/.local/bin/snip" ] && printf '  ✓ snip\n' || printf '  ✗ snip (manual install required)\n'
   command -v rtk >/dev/null 2>&1 || [ -x "$HOME/.local/bin/rtk" ] || [ -f "$HOME/.local/lib/node_modules/rtk/package.json" ] && printf '  ✓ rtk\n' || printf '  ✗ rtk (manual install required)\n'

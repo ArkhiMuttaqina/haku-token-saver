@@ -70,6 +70,13 @@ Prefer:
 - `hts -- docker ps`
 - `hts -- docker logs <container>`
 
+Structured formatter (deterministic packets):
+- `hts --detail compact -- docker ps`
+- `hts --detail compact -- git status`
+- `hts --detail compact -- git diff --stat`
+- `hts --detail compact -- ps aux`
+- `hts --structured -- kubectl get pods -A`
+
 Use raw terminal mainly for actions/mutations:
 - installs
 - builds

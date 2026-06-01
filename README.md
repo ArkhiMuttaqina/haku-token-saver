@@ -1,5 +1,10 @@
 # Haku Token Saver
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Shell](https://img.shields.io/badge/shell-bash-green.svg)
+![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
+![Status](https://img.shields.io/badge/status-stable-success.svg)
+
 Token-saving toolkit for agentic coding workflows.
 
 `hts` is a small orchestrator that wraps:
@@ -128,6 +133,8 @@ Use raw terminal for actions/mutations or when exact output is required.
 - `hts --commit <summary|full-summary> [--staged-only]`
 - `hts --review <diff|lint|test|all>`
 - `hts --template <name>`
+- `hts --detail <compact|normal|full|raw> -- <cmd>`
+- `hts --structured -- <cmd>`
 
 ---
 
@@ -216,6 +223,33 @@ hts -- pytest
 hts -- npm test
 hts -- docker ps
 ```
+
+### Structured terminal wrapper
+
+`terminal_wrapper/render.py` adds deterministic compact renderers for useful observation commands. Use it through `hts --detail`:
+
+```bash
+hts --detail compact -- docker ps
+hts --detail compact -- docker images
+hts --detail compact -- git status
+hts --detail compact -- git log -20
+hts --detail compact -- git diff --stat
+hts --detail compact -- kubectl get pods -A
+hts --detail compact -- ps aux
+hts --detail compact -- ss -tulpn
+hts --detail compact -- systemctl status docker
+```
+
+Modes:
+
+```text
+compact = default agent packet
+normal  = more context
+full    = keep extra visible fields
+raw     = bounded raw fallback
+```
+
+Use `--structured` as alias for `--detail compact`.
 
 ### Force backend
 
@@ -419,6 +453,7 @@ Example:
 
 ```json
 {
+  "schemaVersion": 1,
   "packs": ["git", "node"],
   "backend": "auto",
   "created": "2026-05-31T12:00:00+07:00"
@@ -427,9 +462,44 @@ Example:
 
 ### Environment variables
 
-- `HAKU_TOKEN_SAVER_BACKEND` → force backend: `snip|rtk|raw`
-- `HAKU_TOKEN_SAVER_STRICT` → fail if chosen backend is unavailable
+- `HTS_BACKEND` → force backend: `snip|rtk|raw`
+- `HTS_STRICT` → fail if chosen backend is unavailable
 - `HTS_SNIP_REF` → override local reference path for synced snip filters
+- `HTS_RAW_MAX_LINES` → default raw fallback line cap
+- `HTS_RAW_MAX_BYTES` → default raw fallback byte cap
+
+Legacy aliases remain supported for compatibility:
+
+- `HAKU_TOKEN_SAVER_BACKEND` → alias for `HTS_BACKEND`
+- `HAKU_TOKEN_SAVER_STRICT` → alias for `HTS_STRICT`
+
+---
+
+## Skills
+
+The repo includes a canonical Hermes skill for HTS: `skills/hts-token-saver/`
+
+This skill contains:
+
+- Architecture and operating policy for HTS
+- Backend routing logic (snip > rtk > raw-limited)
+- Integration patterns for snip/RTK/Caveman
+- Safe workflow guidelines
+- Common pitfalls and edge cases
+
+Load this skill in Hermes for context on HTS internals:
+
+```text
+/skill hts-token-saver
+```
+
+Or load programmatically:
+
+```text
+skill_view(name='hts-token-saver')
+```
+
+The skill is installed automatically to `~/.hermes/skills/development/hts-token-saver/` by `install.sh`.
 
 ---
 
@@ -441,6 +511,7 @@ scripts/caveman_wrapper.sh   template workflow adapter
 config/filter-map.yaml       alias + command family mapping
 config/snip-filters.txt      synced upstream filter inventory
 packs/*.yaml                 project pack presets
+skills/hts-token-saver/      canonical Hermes skill for HTS maintenance and usage
 docs/                        documentation
 ```
 

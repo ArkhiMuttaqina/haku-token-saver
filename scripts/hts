@@ -31,7 +31,7 @@ BACKEND_CACHE="${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver/backend"
 mkdir -p "$(dirname "$BACKEND_CACHE")"
 
 # Defaults
-BACKEND="${HAKU_TOKEN_SAVER_BACKEND:-}"
+BACKEND="${HTS_BACKEND:-${HAKU_TOKEN_SAVER_BACKEND:-}}"
 DRY_RUN=false
 TEMPLATE=""
 WHICH_MODE=false
@@ -48,11 +48,41 @@ COMPRESS_LIMIT="180"
 COMMIT_MODE=""
 COMMIT_STAGED_ONLY=false
 REVIEW_MODE=""
-SYNC_SNIP_FROM="${HTS_SNIP_REF:-/home/arkhi25/Repo/references/agentic/snip}"
-STRICT_MODE="${HAKU_TOKEN_SAVER_STRICT:-false}"
+SYNC_SNIP_FROM="${HTS_SNIP_REF:-}"
+STRICT_MODE="${HTS_STRICT:-${HAKU_TOKEN_SAVER_STRICT:-false}}"
 RAW_MAX_LINES="${HTS_RAW_MAX_LINES:-200}"
 RAW_MAX_BYTES="${HTS_RAW_MAX_BYTES:-20000}"
 NO_LIMIT=false
+DETAIL_MODE="auto"
+STRUCTURED_WRAPPER_SCRIPT=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STRUCTURED_WRAPPER_SCRIPT="${SCRIPT_DIR}/../terminal_wrapper/render.py"
+if [ ! -f "$STRUCTURED_WRAPPER_SCRIPT" ]; then
+  STRUCTURED_WRAPPER_SCRIPT=""
+fi
+
+default_snip_ref() {
+  if [ -n "$SYNC_SNIP_FROM" ]; then
+    printf '%s\n' "$SYNC_SNIP_FROM"
+    return
+  fi
+
+  if [ -n "$REPO_DIR" ]; then
+    for candidate in \
+      "$REPO_DIR/../snip" \
+      "$REPO_DIR/../../references/agentic/snip" \
+      "$HOME/Repo/references/agentic/snip"; do
+      if [ -d "$candidate" ]; then
+        printf '%s\n' "$candidate"
+        return
+      fi
+    done
+  fi
+
+  printf '%s\n' ""
+}
+
+SYNC_SNIP_FROM="$(default_snip_ref)"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -119,6 +149,18 @@ while [[ $# -gt 0 ]]; do
       NO_LIMIT=true
       shift
       ;;
+    --detail)
+      DETAIL_MODE="${2:-compact}"
+      if [[ "${2:-}" != "" && "${2:-}" != --* ]]; then
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --structured)
+      DETAIL_MODE="compact"
+      shift
+      ;;
     --commit)
       COMMIT_MODE="${2:-summary}"
       if [[ "${2:-}" != "" && "${2:-}" != --* ]]; then
@@ -183,11 +225,13 @@ Options:
   --max-lines <N>       Raw fallback line cap (default: 200; env: HTS_RAW_MAX_LINES)
   --max-bytes <N>       Raw fallback byte cap (default: 20000; env: HTS_RAW_MAX_BYTES)
   --no-limit            Allow unlimited raw fallback output
+  --detail <mode>       Structured formatter mode: auto|compact|normal|full|raw
+  --structured          Alias for --detail compact
   --commit <mode>       Generate commit summary from git diff (summary|full-summary)
   --staged-only         Use staged changes instead of working-tree diff (for --commit)
   --review <mode>       Generate review packet: diff|lint|test|all
   --dry-run             Show command without executing
-  --backend auto|snip|rtk|raw  Force backend (env: HAKU_TOKEN_SAVER_BACKEND)
+  --backend auto|snip|rtk|raw  Force backend (env: HTS_BACKEND)
   --template <name>     Route to caveman_wrapper.sh workflow
 
 Backends (priority when auto):
@@ -203,10 +247,15 @@ Template aliases:
   scripts -> npm-scripts
 
 Env:
-  HAKU_TOKEN_SAVER_BACKEND   Override backend selection
-  HAKU_TOKEN_SAVER_STRICT    Fail if selected backend missing (default: false)
+  HTS_BACKEND                Override backend selection
+  HTS_STRICT                 Fail if selected backend missing (default: false)
+  HTS_SNIP_REF               Local snip repo path for filter inventory sync
   HTS_RAW_MAX_LINES          Default raw fallback line cap (default: 200)
   HTS_RAW_MAX_BYTES          Default raw fallback byte cap (default: 20000)
+
+Compatibility:
+  HAKU_TOKEN_SAVER_BACKEND   Legacy alias for HTS_BACKEND
+  HAKU_TOKEN_SAVER_STRICT    Legacy alias for HTS_STRICT
 
 Examples:
   hts -- git status
@@ -225,6 +274,10 @@ Examples:
   hts --review all
   hts --max-lines 100 --max-bytes 10000 -- some-verbose-command
   hts --no-limit -- git log -50
+  hts --detail compact -- docker ps
+  hts --detail normal -- git status
+  hts --detail full -- kubectl get pods -A
+  hts --structured -- ps aux
 EOF
       exit 0
       ;;
@@ -696,6 +749,7 @@ if [ "$INIT_MODE" = true ]; then
 
   cat > "$PROJECT_CONFIG" <<EOF
 {
+  "schemaVersion": 1,
   "packs": $packs_json,
   "backend": "auto",
   "created": "$(date -Iseconds)"
@@ -952,6 +1006,20 @@ if [ "$GAIN_MODE" = true ]; then
     printf '%s\n' "percent_saved=0.00"
   fi
   exit 0
+fi
+
+# Structured terminal wrapper path for known observation commands.
+# Use --detail compact|normal|full or --structured to force deterministic render.py.
+if [ "$DETAIL_MODE" != "auto" ] && [ -n "$STRUCTURED_WRAPPER_SCRIPT" ]; then
+  case "$DETAIL_MODE" in
+    compact|normal|full|raw)
+      exec python3 "$STRUCTURED_WRAPPER_SCRIPT" --mode "$DETAIL_MODE" "$@"
+      ;;
+    *)
+      echo "[err] unknown --detail mode: $DETAIL_MODE" >&2
+      exit 1
+      ;;
+  esac
 fi
 
 # Execute

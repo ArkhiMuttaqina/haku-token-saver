@@ -75,6 +75,25 @@ hts -- pytest
 hts -- docker ps
 ```
 
+Structured formatter mode for deterministic packets:
+
+```bash
+hts --detail compact -- docker ps
+hts --detail compact -- docker images
+hts --detail compact -- git status
+hts --detail compact -- git diff --stat
+hts --detail compact -- kubectl get pods -A
+hts --detail compact -- ps aux
+hts --detail compact -- ss -tulpn
+hts --detail compact -- systemctl status docker
+```
+
+Alias:
+
+```bash
+hts --structured -- docker ps
+```
+
 ---
 
 ## Check backend

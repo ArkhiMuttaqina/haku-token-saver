@@ -1,0 +1,35 @@
+schemaVersion: 1
+name: terminal-wrapper
+purpose: universal terminal output adapter for human-readable and AI-efficient command packets
+
+modes:
+  default: compact
+  allowed:
+    - compact
+    - normal
+    - full
+    - raw
+
+policy:
+  observation_only: true
+  raw_escape_hatch: true
+  deterministic_first: true
+  hallucination_guard: factual_only
+
+preinstalled_templates:
+  docker:
+    - docker-ps
+    - docker-images
+  git:
+    - git-status
+    - git-diff-stat
+  kubernetes:
+    - kubectl-get-pods
+  system:
+    - ps-aux
+    - ss-listen
+    - systemctl-status
+  node:
+    - npm-test
+  python:
+    - pytest
