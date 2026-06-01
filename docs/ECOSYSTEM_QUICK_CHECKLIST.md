@@ -7,7 +7,7 @@ This is the short version of `ECOSYSTEM_DISTRIBUTION.md` for quick reference.
 Run from repo root:
 
 ```bash
-hermes skills publish /home/arkhi25/repo/agentic/Haku-token-saver/skills/hts-token-saver --to github --repo ArkhiMuttaqina/haku-token-saver
+hermes skills publish $(pwd)/skills/hts-token-saver --to github --repo ArkhiMuttaqina/haku-token-saver
 ```
 
 Requirements:

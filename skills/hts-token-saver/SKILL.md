@@ -30,11 +30,11 @@ metadata:
 
 # hts token saver
 
-Use this skill when modifying `/home/arkhi25/repo/agentic/Haku-token-saver/`, installing HTS, adding command routing, writing agent rules, or reducing noisy CLI output.
+Use this skill when modifying HTS repo, installing HTS, adding command routing, writing agent rules, or reducing noisy CLI output.
 
 ## Canonical paths
 
-- Repo: `/home/arkhi25/repo/agentic/Haku-token-saver/`
+- Repo: (repo root)
 - Installed config/cache: `~/.config/haku-token-saver/`
 - Installed CLI default: `~/bin/hts`
 - Runtime packs: `~/.config/haku-token-saver/packs/`
@@ -297,7 +297,6 @@ Installer expectations:
 1. Inspect state first:
 
 ```bash
-cd /home/arkhi25/repo/agentic/Haku-token-saver
 git status --short
 ```
 
