@@ -3,11 +3,24 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HERMES_DIR="$HOME/.hermes"
-BIN_DIR="${PREFIX:-$HOME/bin}"
 TEMPLATES_DIR="$HOME/templates"
 CLAUDE_DIR="$HOME/.claude"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver"
+CONFIG_DIR="${HTS_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver}"
 BACKEND_CACHE="$CONFIG_DIR/backend"
+
+resolve_bin_dir() {
+  if [ -n "${PREFIX:-}" ]; then
+    printf '%s\n' "$PREFIX"
+  elif [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
+    printf '%s\n' "/usr/local/bin"
+  elif [ -d "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
+    printf '%s\n' "$HOME/.local/bin"
+  else
+    printf '%s\n' "$HOME/bin"
+  fi
+}
+
+BIN_DIR="$(resolve_bin_dir)"
 
 REPO_URL="https://github.com/ArkhiMuttaqina/haku-token-saver"
 REPO_BRANCH="${HTS_REPO_BRANCH:-main}"

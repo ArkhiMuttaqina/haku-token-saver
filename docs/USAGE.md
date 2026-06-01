@@ -12,11 +12,20 @@ Use it when command output is too verbose for an AI coding agent.
 ### Shell install
 
 ```bash
-git clone git@github.com:ArkhiMuttaqina/haku-token-saver.git
+curl -fsSL https://raw.githubusercontent.com/ArkhiMuttaqina/haku-token-saver/main/install.sh | bash
+hts --doctor
+```
+
+Clone fallback:
+
+```bash
+git clone https://github.com/ArkhiMuttaqina/haku-token-saver.git
 cd haku-token-saver
 ./install.sh --install-deps
 hts --doctor
 ```
+
+Install/path rules: see [`docs/INSTALL.md`](docs/INSTALL.md).
 
 The installer installs or verifies `snip`, `rtk`, and `caveman`. If none are available, `hts` falls back to bounded `raw-limited` output.
 

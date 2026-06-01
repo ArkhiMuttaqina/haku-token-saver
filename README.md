@@ -23,6 +23,14 @@ snip > rtk > raw-limited
 curl -fsSL https://raw.githubusercontent.com/ArkhiMuttaqina/haku-token-saver/main/install.sh | bash
 ```
 
+Default install paths:
+
+- Linux/macOS: `/usr/local/bin` if writable, else `~/.local/bin`, else `~/bin`
+- Config: `${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver`
+- Windows: use Git Bash or WSL only
+
+See [`docs/INSTALL.md`](docs/INSTALL.md) for the full platform matrix and path rules.
+
 ### One-line from agent prompt
 
 Paste this into any shell-capable AI agent:
@@ -137,6 +145,7 @@ Removes binaries, config, templates, and Hermes skills.
 
 ## Docs
 
+- [`docs/INSTALL.md`](docs/INSTALL.md) — cross-platform install matrix and path rules
 - [`docs/USAGE.md`](docs/USAGE.md) — full usage guide
 - [`docs/AGENTIC_SUPPORT.md`](docs/AGENTIC_SUPPORT.md) — agent/IDE integration
 - [`docs/ECOSYSTEM_DISTRIBUTION.md`](docs/ECOSYSTEM_DISTRIBUTION.md) — Hermes ecosystem & Clawhub positioning
