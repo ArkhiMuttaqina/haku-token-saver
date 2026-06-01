@@ -9,6 +9,31 @@ CLAUDE_DIR="$HOME/.claude"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver"
 BACKEND_CACHE="$CONFIG_DIR/backend"
 
+REPO_URL="https://github.com/ArkhiMuttaqina/haku-token-saver"
+REPO_BRANCH="${HTS_REPO_BRANCH:-main}"
+
+# Bootstrap: if not inside repo, download tarball and run from tmpdir
+if [ ! -f "$SCRIPT_DIR/scripts/hts" ]; then
+  command -v curl >/dev/null 2>&1 || { echo "[err] missing dependency: curl" >&2; exit 1; }
+  command -v tar >/dev/null 2>&1 || { echo "[err] missing dependency: tar" >&2; exit 1; }
+
+  BOOTSTRAP_TMPDIR="$(mktemp -d)"
+  trap 'rm -rf "$BOOTSTRAP_TMPDIR"' EXIT
+
+  printf '[i] downloading %s/archive/refs/heads/%s.tar.gz into %s\n' "$REPO_URL" "$REPO_BRANCH" "$BOOTSTRAP_TMPDIR"
+  curl -fsSL "$REPO_URL/archive/refs/heads/$REPO_BRANCH.tar.gz" -o "$BOOTSTRAP_TMPDIR/repo.tar.gz" || { echo "[err] download failed" >&2; exit 1; }
+
+  printf '[i] extracting tarball\n'
+  tar -xzf "$BOOTSTRAP_TMPDIR/repo.tar.gz" -C "$BOOTSTRAP_TMPDIR" || { echo "[err] extraction failed" >&2; exit 1; }
+
+  EXTRACTED_DIR="$(find "$BOOTSTRAP_TMPDIR" -maxdepth 1 -type d -name "haku-token-saver-*" | head -n 1)"
+  [ -d "$EXTRACTED_DIR" ] || { echo "[err] extracted directory not found" >&2; exit 1; }
+
+  SCRIPT_DIR="$EXTRACTED_DIR"
+  export SCRIPT_DIR
+  printf '[i] bootstrapped to %s\n' "$SCRIPT_DIR"
+fi
+
 # Parse flags
 WITH_SHELL_PROFILE=false
 DRY_RUN=false
@@ -227,8 +252,8 @@ install_deps() {
 
 preflight() {
   need bash
-  need git
   need jq
+  command -v git >/dev/null 2>&1 || warn "git not found; some workflows like repo inspection and project init may be limited"
 
   if [ "$INSTALL_DEPS" = true ]; then
     command -v npm >/dev/null 2>&1 || warn "npm not found; caveman/rtk auto-install may fail"
@@ -325,6 +350,21 @@ install_packs_config() {
   fi
 
   ok "packs and config installed"
+}
+
+install_terminal_wrapper() {
+  dry_echo "mkdir -p \"$CONFIG_DIR/terminal_wrapper\""
+  [ "$DRY_RUN" = true ] || mkdir -p "$CONFIG_DIR/terminal_wrapper"
+
+  if [ -d "$SCRIPT_DIR/terminal_wrapper" ]; then
+    for item in "$SCRIPT_DIR/terminal_wrapper/"*; do
+      dry_echo "cp -R \"$item\" \"$CONFIG_DIR/terminal_wrapper/\""
+      [ "$DRY_RUN" = true ] || cp -R "$item" "$CONFIG_DIR/terminal_wrapper/"
+    done
+    ok "terminal wrapper installed"
+  else
+    info "terminal_wrapper not found; --detail mode will not be available"
+  fi
 }
 
 write_backend_cache() {
@@ -440,6 +480,7 @@ main() {
   install_scripts
   install_templates
   install_packs_config
+  install_terminal_wrapper
 
   if [ "$WITH_SHELL_PROFILE" = true ]; then
     install_aliases
@@ -450,10 +491,10 @@ main() {
   printf '\n'
   ok "Done."
   printf '\nNext steps:\n'
-  printf '  1. Source shell: source ~/.zshrc\n'
-  printf '  2. Verify: verify-token-saver\n'
-  printf '  3. Test: hts --which\n'
-  printf '  4. Run: hts -- git status\n'
+  printf '  1. Ensure %s is on PATH\n' "$BIN_DIR"
+  printf '  2. Verify: hts --doctor\n'
+  printf '  3. Check backend: hts --which\n'
+  printf '  4. Try: hts -- git status\n'
   printf '\nBackend tools installed:\n'
   command -v snip >/dev/null 2>&1 || [ -x "$HOME/.local/bin/snip" ] && printf '  ✓ snip\n' || printf '  ✗ snip (manual install required)\n'
   command -v rtk >/dev/null 2>&1 || [ -x "$HOME/.local/bin/rtk" ] || [ -f "$HOME/.local/lib/node_modules/rtk/package.json" ] && printf '  ✓ rtk\n' || printf '  ✗ rtk (manual install required)\n'

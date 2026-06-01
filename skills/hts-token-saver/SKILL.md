@@ -1,6 +1,10 @@
 ---
 name: hts-token-saver
-description: Maintain and use hts as the unified token-saving observation layer for shell-capable agents: snip/rtk/raw-limited routing, Caveman templates, install flow, repo maintenance, and context hygiene.
+description: "Use HTS as the unified token-saving observation layer for shell-capable agents: structured review packets, command recipes, safe defaults for verbose commands, and concise repo-aware summaries."
+version: 1.0.0
+author: Haku
+license: MIT
+platforms: [linux, macos, windows]
 tags:
   - hts
   - snip
@@ -9,6 +13,19 @@ tags:
   - cli-output-compression
   - token-saving
   - agent-workflow
+  - hermes
+  - codex
+  - claude-code
+  - opencode
+  - cursor
+metadata:
+  hermes:
+    tags: [hts, token-saving, shell, review-packets, git, docker, codex, claude-code, opencode, cursor, hermes]
+    homepage: https://github.com/ArkhiMuttaqina/haku-token-saver
+    source: https://github.com/ArkhiMuttaqina/haku-token-saver
+    install_docs: docs/ECOSYSTEM_DISTRIBUTION.md
+    publish_path: skills/hts-token-saver
+    related_skills: [hermes-agent, claude-code, codex, opencode]
 ---
 
 # hts token saver
@@ -248,14 +265,7 @@ Caveman syntax reference:
 
 ## Install and reinstall workflow
 
-Preferred install:
-
-```bash
-git clone git@github.com:ArkhiMuttaqina/haku-token-saver.git
-cd haku-token-saver
-./install.sh --install-deps
-hts --doctor
-```
+For user-facing installation, refer to the repository README and `docs/ECOSYSTEM_DISTRIBUTION.md`.
 
 When testing installer changes locally, uninstall local installed artifacts first, then reinstall:
 

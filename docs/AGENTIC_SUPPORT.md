@@ -114,57 +114,33 @@ Works if the agent has:
 
 ---
 
-## Current practical integrations
+## Supported agents and IDEs
 
-| Agent/tool | Status | Notes |
-|------------|--------|-------|
-| Hermes | supported target | main workflow target |
-| OpenClaw-style agents | supported pattern | use CLI instructions |
-| Generic terminal agents | supported pattern | anything shell-capable |
+| Agent/tool | Status | Integration model |
+|------------|--------|-------------------|
+| Hermes | supported | project/session instruction + shell commands |
+| OpenClaw / OpenCode-style agents | supported | shell command policy |
+| Codex CLI | supported | add agent rule; call `hts` before verbose commands |
+| Claude Code | supported | add rule to `CLAUDE.md` or project memory |
+| Gemini CLI | supported | add terminal policy to project instruction |
+| Cursor | supported | add `.cursorrules` / workspace rule |
+| VS Code tasks | supported | task runner commands call `hts` |
+| Antigravity-style IDE workflows | supported | workspace instruction + terminal wrapper |
+| Generic terminal agents | supported | anything that can execute shell commands |
 
----
-
-## Soon: Code CLI support
-
-Planned docs/snippets for:
-
-- Codex CLI
-- OpenCode
-- Claude Code
-- Cursor terminal workflows
-
-Goal:
-
-- add ready-to-copy instructions
-- add command recipes
-- add safe defaults for verbose commands
-- add review/commit packet workflows
-
-Example future pattern:
+Ready-to-copy universal rule:
 
 ```markdown
-Before running `git diff`, use `hts --review diff`.
-Before asking for a commit message, use `hts --commit full-summary --staged-only`.
-For tests, use `hts --review test` or `hts -- npm test`.
+Use `hts` as the default interface for verbose terminal inspection. Before raw `git diff`, `git log`, test, lint, build, docker, or kubectl output enters context, prefer `hts -- <command>` or an HTS packet command. Use raw terminal for mutation, install, deploy, interactive, or exact-output tasks.
+
+Examples:
+- Before running `git diff`, use `hts --review diff`.
+- Before asking for a commit message, use `hts --commit full-summary --staged-only`.
+- For tests, use `hts --review test` or `hts -- npm test`.
+- For deterministic compact packets, use `hts --detail compact -- <command>`.
 ```
 
----
-
-## Soon: IDE support
-
-Planned documentation for:
-
-- VS Code
-- Antigravity-style IDE workflows
-
-Target use cases:
-
-- terminal profile integration
-- task runner integration
-- agent rules / workspace instructions
-- commit/review command shortcuts
-
-Example future VS Code task idea:
+VS Code task example:
 
 ```json
 {

@@ -55,11 +55,14 @@ RAW_MAX_BYTES="${HTS_RAW_MAX_BYTES:-20000}"
 NO_LIMIT=false
 DETAIL_MODE="auto"
 STRUCTURED_WRAPPER_SCRIPT=""
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STRUCTURED_WRAPPER_SCRIPT="${SCRIPT_DIR}/../terminal_wrapper/render.py"
-if [ ! -f "$STRUCTURED_WRAPPER_SCRIPT" ]; then
-  STRUCTURED_WRAPPER_SCRIPT=""
-fi
+for candidate in \
+  "${SCRIPT_DIR}/../terminal_wrapper/render.py" \
+  "${CONFIG_DIR}/terminal_wrapper/render.py"; do
+  if [ -f "$candidate" ]; then
+    STRUCTURED_WRAPPER_SCRIPT="$candidate"
+    break
+  fi
+done
 
 default_snip_ref() {
   if [ -n "$SYNC_SNIP_FROM" ]; then
