@@ -2,7 +2,7 @@
 name: hts-token-saver
 description: "Use HTS as the unified token-saving observation layer for shell-capable agents: structured review packets, command recipes, safe defaults for verbose commands, and concise repo-aware summaries."
 version: 1.0.0
-author: Haku
+author: Arkhi Muttaqina <arkhi07@hotmail.co.id>
 license: MIT
 platforms: [linux, macos, windows]
 tags:
@@ -30,11 +30,11 @@ metadata:
 
 # hts token saver
 
-Use this skill when modifying `/home/arkhi25/Repo/agentic/Haku-token-saver/`, installing HTS, adding command routing, writing agent rules, or reducing noisy CLI output.
+Use this skill when modifying `/home/arkhi25/repo/agentic/Haku-token-saver/`, installing HTS, adding command routing, writing agent rules, or reducing noisy CLI output.
 
 ## Canonical paths
 
-- Repo: `/home/arkhi25/Repo/agentic/Haku-token-saver/`
+- Repo: `/home/arkhi25/repo/agentic/Haku-token-saver/`
 - Installed config/cache: `~/.config/haku-token-saver/`
 - Installed CLI default: `~/bin/hts`
 - Runtime packs: `~/.config/haku-token-saver/packs/`
@@ -297,7 +297,7 @@ Installer expectations:
 1. Inspect state first:
 
 ```bash
-cd /home/arkhi25/Repo/agentic/Haku-token-saver
+cd /home/arkhi25/repo/agentic/Haku-token-saver
 git status --short
 ```
 
