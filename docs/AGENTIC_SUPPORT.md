@@ -22,6 +22,13 @@ Primary practical targets today:
 - OpenClaw-style agents
 - other shell-capable coding agents
 
+Platform support:
+
+- Linux: supported
+- macOS: supported
+- Windows via Git Bash / WSL: supported
+- Windows PowerShell / CMD: unsupported
+
 ## Main-hand policy
 
 Treat `hts` as the default terminal interface for observation-heavy work.
@@ -111,6 +118,15 @@ Works if the agent has:
 - repository working directory
 - `hts` installed in `PATH`
 - permission to call `hts` before large raw commands
+
+Install/platform rules:
+
+- Linux/macOS: installer picks `/usr/local/bin` if writable, else `~/.local/bin`, else `~/bin`
+- Config: `${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver`
+- Windows: supported via Git Bash or WSL only
+- Native PowerShell / CMD: not supported
+
+See [`docs/INSTALL.md`](INSTALL.md) for the full path matrix.
 
 ---
 

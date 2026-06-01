@@ -36,7 +36,7 @@ See [`docs/INSTALL.md`](docs/INSTALL.md) for the full platform matrix and path r
 Paste this into any shell-capable AI agent:
 
 ```text
-Install HTS. Run: curl -fsSL https://raw.githubusercontent.com/ArkhiMuttaqina/haku-token-saver/main/install.sh | bash. Ensure ~/bin is on PATH. Verify with hts --doctor and hts --which. Use hts as default observation interface for verbose terminal output: git status/log/diff, tests, lint, build, docker logs, kubectl logs. Use raw terminal for mutation, install, deploy, interactive, or exact-output tasks.
+Install HTS. Run: curl -fsSL https://raw.githubusercontent.com/ArkhiMuttaqina/haku-token-saver/main/install.sh | bash. Ensure hts is on PATH. Verify with hts --doctor, hts --which, and hts --self-test. If PATH fails, run hts --fix-env or inspect ./install.sh --json. Use hts as default observation interface for verbose terminal output: git status/log/diff, tests, lint, build, docker logs, kubectl logs. Use raw terminal for mutation, install, deploy, interactive, or exact-output tasks.
 ```
 
 ### Clone install (fallback)
@@ -146,6 +146,7 @@ Removes binaries, config, templates, and Hermes skills.
 ## Docs
 
 - [`docs/INSTALL.md`](docs/INSTALL.md) — cross-platform install matrix and path rules
+- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — install/runtime fixes and agent repair flow
 - [`docs/USAGE.md`](docs/USAGE.md) — full usage guide
 - [`docs/AGENTIC_SUPPORT.md`](docs/AGENTIC_SUPPORT.md) — agent/IDE integration
 - [`docs/ECOSYSTEM_DISTRIBUTION.md`](docs/ECOSYSTEM_DISTRIBUTION.md) — Hermes ecosystem & Clawhub positioning

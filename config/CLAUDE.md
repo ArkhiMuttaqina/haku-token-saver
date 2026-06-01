@@ -23,10 +23,12 @@ Goal: reduce terminal-output token waste without hiding important failures.
 Generic command routing:
 
 ```bash
-~/bin/hts -- git status
-~/bin/hts -- npm test
-~/bin/hts --which
+hts -- git status
+hts -- npm test
+hts --which
 ```
+
+`hts` must be available in `PATH`. Default install target is first writable path: `/usr/local/bin`, else `~/.local/bin`, else `~/bin`.
 
 Backend priority:
 

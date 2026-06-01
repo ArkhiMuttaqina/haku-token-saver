@@ -9,6 +9,9 @@
 #   --template <name>     Route to caveman_wrapper.sh workflow
 #   --doctor              Run diagnostics and show available packs
 #   --init                Initialize project with auto-detected packs
+#   --json                Emit machine-readable JSON for supported modes
+#   --self-test           Run deterministic internal smoke tests
+#   --fix-env             Print or apply safe PATH fix hints
 # Template aliases: test -> test-results, status -> git-status, log -> git-log, scripts -> npm-scripts
 
 set -e
@@ -21,13 +24,13 @@ if [ -d "$SCRIPT_DIR/../config" ] && [ -d "$SCRIPT_DIR/../packs" ]; then
   PACKS_DIR="$REPO_DIR/packs"
 else
   REPO_DIR=""
-  CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver"
+  CONFIG_DIR="${HTS_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver}"
   PACKS_DIR="$CONFIG_DIR/packs"
 fi
 CAVEMAN_WRAPPER="$SCRIPT_DIR/caveman_wrapper.sh"
 FILTER_MAP="$CONFIG_DIR/filter-map.yaml"
 PROJECT_CONFIG="${HTS_PROJECT_CONFIG:-.hts.json}"
-BACKEND_CACHE="${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver/backend"
+BACKEND_CACHE="$CONFIG_DIR/backend"
 mkdir -p "$(dirname "$BACKEND_CACHE")"
 
 # Defaults
@@ -51,6 +54,9 @@ REVIEW_MODE=""
 SYNC_SNIP_FROM="${HTS_SNIP_REF:-}"
 STRICT_MODE="${HTS_STRICT:-${HAKU_TOKEN_SAVER_STRICT:-false}}"
 RAW_MAX_LINES="${HTS_RAW_MAX_LINES:-200}"
+JSON_MODE=false
+SELF_TEST_MODE=false
+FIX_ENV_MODE=false
 RAW_MAX_BYTES="${HTS_RAW_MAX_BYTES:-20000}"
 NO_LIMIT=false
 DETAIL_MODE="auto"
@@ -96,6 +102,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --doctor)
       DOCTOR_MODE=true
+      shift
+      ;;
+    --json)
+      JSON_MODE=true
+      shift
+      ;;
+    --self-test)
+      SELF_TEST_MODE=true
+      shift
+      ;;
+    --fix-env)
+      FIX_ENV_MODE=true
       shift
       ;;
     --init)
@@ -212,6 +230,9 @@ Usage:
   hts --filters [pattern]
   hts --packs
   hts --sync-snip-filters [--from /path/to/snip]
+  hts --doctor --json
+  hts --self-test
+  hts --fix-env
   hts --which
 
 Options:
@@ -220,6 +241,9 @@ Options:
   --init                Initialize .hts.json from detected packs
   --filters [pattern]   List known snip filters from config/synced inventory; optional regex pattern to filter results
   --packs               List hts packs and their filters
+  --json                Emit JSON for --doctor, --which, --explain, --self-test, --fix-env
+  --self-test           Run deterministic internal smoke tests without network/install mutation
+  --fix-env             Print safe PATH repair instructions; append with HTS_APPLY_FIX_ENV=1
   --sync-snip-filters   Sync filter inventory from local snip repo
   --gain                Compare raw vs final output byte count for a command
   --explain             Print backend/filter/fallback decision without executing command
@@ -316,6 +340,85 @@ detect_backend() {
     echo "rtk"
   else
     echo "raw"
+  fi
+}
+
+json_escape() {
+  local s="${1:-}"
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
+
+json_bool() { [ "${1:-false}" = true ] && printf 'true' || printf 'false'; }
+
+tool_path() { command -v "$1" 2>/dev/null || true; }
+
+path_contains() {
+  case ":$PATH:" in *":$1:"*) return 0 ;; *) return 1 ;; esac
+}
+
+detect_env() {
+  local os shell_name bin_hint path_ok windows_mode
+  os="$(uname -s 2>/dev/null || printf unknown)"
+  shell_name="$(basename "${SHELL:-unknown}")"
+  bin_hint=""
+  for candidate in "$HOME/.local/bin" "$HOME/bin" "/usr/local/bin"; do
+    if [ -x "$candidate/hts" ] || [ -d "$candidate" ]; then bin_hint="$candidate"; break; fi
+  done
+  [ -n "$bin_hint" ] || bin_hint="$HOME/.local/bin"
+  path_contains "$bin_hint" && path_ok=true || path_ok=false
+  case "$os" in MINGW*|MSYS*|CYGWIN*) windows_mode=true ;; *) windows_mode=false ;; esac
+  if [ "$JSON_MODE" = true ]; then
+    printf '{"os":"%s","shell":"%s","config_dir":"%s","packs_dir":"%s","backend_cache":"%s","bin_hint":"%s","bin_on_path":%s,"windows_git_bash":%s}\n' \
+      "$(json_escape "$os")" "$(json_escape "$shell_name")" "$(json_escape "$CONFIG_DIR")" "$(json_escape "$PACKS_DIR")" "$(json_escape "$BACKEND_CACHE")" "$(json_escape "$bin_hint")" "$(json_bool "$path_ok")" "$(json_bool "$windows_mode")"
+  else
+    printf 'os=%s\nshell=%s\nconfig_dir=%s\npacks_dir=%s\nbackend_cache=%s\nbin_hint=%s\nbin_on_path=%s\n' "$os" "$shell_name" "$CONFIG_DIR" "$PACKS_DIR" "$BACKEND_CACHE" "$bin_hint" "$path_ok"
+  fi
+}
+
+run_self_test() {
+  local pass=0 fail=0 checks=()
+  check() { if eval "$2"; then checks+=("$1:pass"); pass=$((pass+1)); else checks+=("$1:fail"); fail=$((fail+1)); fi; }
+  check bash_available 'command -v bash >/dev/null 2>&1'
+  check backend_valid 'case "$backend" in snip|rtk|raw) true;; *) false;; esac'
+  check config_dir_set '[ -n "$CONFIG_DIR" ]'
+  check raw_limits_numeric '[[ "$RAW_MAX_LINES" =~ ^[0-9]+$ && "$RAW_MAX_BYTES" =~ ^[0-9]+$ ]]'
+  check packs_dir_present '[ -d "$PACKS_DIR" ]'
+  check filter_map_present '[ -f "$FILTER_MAP" ]'
+  check structured_wrapper_present '[ -n "$STRUCTURED_WRAPPER_SCRIPT" ] && [ -f "$STRUCTURED_WRAPPER_SCRIPT" ]'
+  if [ "$JSON_MODE" = true ]; then
+    printf '{"ok":%s,"passed":%d,"failed":%d,"checks":[' "$( [ "$fail" -eq 0 ] && printf true || printf false )" "$pass" "$fail"
+    local first=true item name status
+    for item in "${checks[@]}"; do name=${item%%:*}; status=${item##*:}; [ "$first" = true ] || printf ','; first=false; printf '{"name":"%s","ok":%s}' "$name" "$( [ "$status" = pass ] && printf true || printf false )"; done
+    printf ']}\n'
+  else
+    printf 'hts self-test\npassed=%d\nfailed=%d\n' "$pass" "$fail"
+    printf '%s\n' "${checks[@]}"
+  fi
+  [ "$fail" -eq 0 ]
+}
+
+fix_env() {
+  local bin_hint rc line applied=false already=false
+  bin_hint="$HOME/.local/bin"
+  [ -x "/usr/local/bin/hts" ] && bin_hint="/usr/local/bin"
+  [ -x "$HOME/.local/bin/hts" ] && bin_hint="$HOME/.local/bin"
+  [ -x "$HOME/bin/hts" ] && bin_hint="$HOME/bin"
+  path_contains "$bin_hint" && already=true
+  rc="$HOME/.profile"; [ -n "${BASH_VERSION:-}" ] && rc="$HOME/.bashrc"; [ "$(basename "${SHELL:-}")" = zsh ] && rc="$HOME/.zshrc"
+  line="export PATH=\"$bin_hint:\$PATH\""
+  if [ "$already" = false ] && [ "${HTS_APPLY_FIX_ENV:-0}" = 1 ]; then
+    if [ -f "$rc" ] && grep -Fq "$line" "$rc" 2>/dev/null; then already=true; else printf '\n# Haku Token Saver PATH\n%s\n' "$line" >> "$rc"; applied=true; fi
+  fi
+  if [ "$JSON_MODE" = true ]; then
+    printf '{"bin_dir":"%s","on_path":%s,"rc_file":"%s","applied":%s,"export_line":"%s"}\n' "$(json_escape "$bin_hint")" "$(json_bool "$already")" "$(json_escape "$rc")" "$(json_bool "$applied")" "$(json_escape "$line")"
+  else
+    printf 'bin_dir=%s\non_path=%s\nrc_file=%s\napplied=%s\nexport_line=%s\n' "$bin_hint" "$already" "$rc" "$applied" "$line"
+    [ "$already" = true ] || [ "$applied" = true ] || printf 'To apply: HTS_APPLY_FIX_ENV=1 hts --fix-env\nThen restart shell or run: %s\n' "$line"
   fi
 }
 
@@ -620,12 +723,17 @@ review_repo() {
 }
 
 if [ "$WHICH_MODE" = true ]; then
-  echo "Backend: $backend"
-  if [ "$backend" != "raw" ]; then
-    if [ "$backend" = "snip" ]; then
-      command -v snip
-    elif [ "$backend" = "rtk" ]; then
-      command -v rtk
+  if [ "$JSON_MODE" = true ]; then
+    printf '{"backend":"%s","path":"%s","snip_path":"%s","rtk_path":"%s"}\n' \
+      "$backend" "$(tool_path hts)" "$(tool_path snip)" "$(tool_path rtk)"
+  else
+    echo "Backend: $backend"
+    if [ "$backend" != "raw" ]; then
+      if [ "$backend" = "snip" ]; then
+        command -v snip
+      elif [ "$backend" = "rtk" ]; then
+        command -v rtk
+      fi
     fi
   fi
   exit 0
@@ -633,52 +741,85 @@ fi
 
 # Doctor mode
 if [ "$DOCTOR_MODE" = true ]; then
-  echo "🩺 hts Doctor"
-  echo ""
-  echo "Backend:"
-  if command -v snip >/dev/null 2>&1; then
-    echo "  ✓ snip available at $(command -v snip)"
+  if [ "$JSON_MODE" = true ]; then
+    local_snip_ok=$(command -v snip >/dev/null 2>&1 && printf true || printf false)
+    local_rtk_ok=$(command -v rtk >/dev/null 2>&1 && printf true || printf false)
+    local_filter_ok=false
+    local_project_ok=false
+    [ -f "$FILTER_MAP" ] && local_filter_ok=true
+    [ -f "$PROJECT_CONFIG" ] && local_project_ok=true
+    printf '{"doctor":{"backend":{"snip":%s,"snip_path":"%s","rtk":%s,"rtk_path":"%s","cached_backend":"%s","backend_cache":"%s"},' \
+      "$(json_bool "$local_snip_ok")" "$(json_escape "$(tool_path snip)")" \
+      "$(json_bool "$local_rtk_ok")" "$(json_escape "$(tool_path rtk)")" \
+      "$(json_escape "$( [ -f "$BACKEND_CACHE" ] && cat "$BACKEND_CACHE" || printf '' )")" "$(json_escape "$BACKEND_CACHE")"
+    printf '"config":{"config_dir":"%s","packs_dir":"%s","filter_map":%s},' \
+      "$(json_escape "$CONFIG_DIR")" "$(json_escape "$PACKS_DIR")" "$(json_bool "$local_filter_ok")"
+    printf '"project_config":%s,' "$(json_bool "$local_project_ok")"
+    printf '"env":%s}}\n' "$(detect_env)"
   else
-    echo "  ✗ snip not found"
+    echo "🩺 hts Doctor"
+    echo ""
+    echo "Backend:"
+    if command -v snip >/dev/null 2>&1; then
+      echo "  ✓ snip available at $(command -v snip)"
+    else
+      echo "  ✗ snip not found"
+    fi
+    if command -v rtk >/dev/null 2>&1; then
+      echo "  ✓ rtk available at $(command -v rtk)"
+    else
+      echo "  ✗ rtk not found"
+    fi
+    echo "  Current cache: ${BACKEND_CACHE:-none}"
+    if [ -f "$BACKEND_CACHE" ]; then
+      echo "  Cached backend: $(cat "$BACKEND_CACHE")"
+    fi
+    echo ""
+    detect_env
+    echo ""
+    echo "Configuration:"
+    echo "  Config dir: $CONFIG_DIR"
+    echo "  Packs dir: $PACKS_DIR"
+    if [ -f "$FILTER_MAP" ]; then
+      echo "  ✓ filter-map.yaml found"
+    else
+      echo "  ✗ filter-map.yaml missing"
+    fi
+    echo ""
+    echo "Project config:"
+    if [ -f "$PROJECT_CONFIG" ]; then
+      echo "  ✓ .hts.json found"
+    else
+      echo "  ✗ .hts.json not found (run 'hts --init' to create)"
+    fi
+    echo ""
+    echo "Available packs:"
+    if [ -d "$PACKS_DIR" ]; then
+      for pack in "$PACKS_DIR"/*.yaml; do
+        if [ -f "$pack" ]; then
+          pack_name=$(basename "$pack" .yaml)
+          pack_desc=$(grep "^description:" "$pack" 2>/dev/null | cut -d' ' -f2-)
+          echo "  - $pack_name: ${pack_desc:-no description}"
+        fi
+      done
+    else
+      echo "  ✗ packs directory not found"
+    fi
+    echo ""
   fi
-  if command -v rtk >/dev/null 2>&1; then
-    echo "  ✓ rtk available at $(command -v rtk)"
-  else
-    echo "  ✗ rtk not found"
-  fi
-  echo "  Current cache: ${BACKEND_CACHE:-none}"
-  if [ -f "$BACKEND_CACHE" ]; then
-    echo "  Cached backend: $(cat "$BACKEND_CACHE")"
-  fi
-  echo ""
-  echo "Configuration:"
-  echo "  Config dir: $CONFIG_DIR"
-  echo "  Packs dir: $PACKS_DIR"
-  if [ -f "$FILTER_MAP" ]; then
-    echo "  ✓ filter-map.yaml found"
-  else
-    echo "  ✗ filter-map.yaml missing"
-  fi
-  echo ""
-  echo "Available packs:"
-  if [ -d "$PACKS_DIR" ]; then
-    for pack in "$PACKS_DIR"/*.yaml; do
-      if [ -f "$pack" ]; then
-        pack_name=$(basename "$pack" .yaml)
-        pack_desc=$(grep "^description:" "$pack" 2>/dev/null | cut -d' ' -f2-)
-        echo "  - $pack_name: ${pack_desc:-no description}"
-      fi
-    done
-  else
-    echo "  ✗ packs directory not found"
-  fi
-  echo ""
-  echo "Project config:"
-  if [ -f "$PROJECT_CONFIG" ]; then
-    echo "  ✓ .hts.json found"
-  else
-    echo "  ✗ .hts.json not found (run 'hts --init' to create)"
-  fi
+  exit 0
+fi
+
+# Self-test mode
+if [ "$SELF_TEST_MODE" = true ]; then
+  run_self_test
+  exit_code=$?
+  exit $exit_code
+fi
+
+# Fix-env mode
+if [ "$FIX_ENV_MODE" = true ]; then
+  fix_env
   exit 0
 fi
 

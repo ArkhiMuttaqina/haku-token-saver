@@ -122,7 +122,20 @@ gh repo edit --description "Unified token-saving observation layer for shell-cap
 
 ### Cross-Platform Compatibility
 
-HTS works on Linux, macOS, and Windows (via Git Bash / WSL). Highlight this in listings.
+HTS is a Bash shell tool with clear platform boundaries:
+
+- Linux: supported
+- macOS: supported
+- Windows via Git Bash / WSL: supported
+- Windows PowerShell / CMD: unsupported
+
+Default install paths:
+
+- Binaries: `/usr/local/bin` if writable, else `~/.local/bin`, else `~/bin`
+- Config: `${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver`
+- Hermes skill: `~/.hermes/skills/development/hts-token-saver`
+
+See [`docs/INSTALL.md`](INSTALL.md) for the full install matrix. Highlight this in listings.
 
 ## Installation Flow for Ecosystem Users
 
@@ -146,6 +159,8 @@ hts --review diff
 ```
 
 If using Hermes, the skill is auto-installed to `~/.hermes/skills/development/hts-token-saver`.
+
+Path rules are documented in [`docs/INSTALL.md`](INSTALL.md). For non-root users, expect `hts` in `~/.local/bin` or pass `--prefix /custom/bin`.
 
 ## Summary
 

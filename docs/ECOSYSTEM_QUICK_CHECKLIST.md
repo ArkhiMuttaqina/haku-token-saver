@@ -52,9 +52,11 @@ curl -fsSL https://raw.githubusercontent.com/ArkhiMuttaqina/haku-token-saver/mai
 ```
 
 The installer places:
-- Binaries at `~/bin/hts`
+- Binaries at first writable path: `/usr/local/bin`, else `~/.local/bin`, else `~/bin`
 - Skill at `~/.hermes/skills/development/hts-token-saver`
-- Config at `~/.config/haku-token-saver/`
+- Config at `${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver` or `HTS_CONFIG_DIR`
+
+Windows support is Git Bash / WSL only. Native PowerShell / CMD is unsupported.
 
 ## Files Changed in This Sprint
 

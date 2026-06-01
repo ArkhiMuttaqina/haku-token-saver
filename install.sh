@@ -50,6 +50,7 @@ fi
 # Parse flags
 WITH_SHELL_PROFILE=false
 DRY_RUN=false
+JSON_OUTPUT=false
 BACKEND="auto"
 INSTALL_DEPS=true
 UNINSTALL=false
@@ -82,6 +83,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --uninstall)
       UNINSTALL=true
+      shift
+      ;;
+    --json)
+      JSON_OUTPUT=true
       shift
       ;;
     *)
@@ -143,6 +148,71 @@ detect_backend() {
   else
     echo "raw"
   fi
+}
+
+detect_agent_env() {
+  local agents=()
+  [ -d "$HERMES_DIR" ] && agents+=("hermes")
+  [ -d "$CLAUDE_DIR" ] && agents+=("claude-code")
+  [ -d "$HOME/.cursor" ] && agents+=("cursor")
+  command -v codex >/dev/null 2>&1 && agents+=("codex")
+  printf '%s\\n' "${agents[*]}"
+}
+
+json_escape() {
+  local s="${1:-}"
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
+
+json_bool() { [ "${1:-false}" = true ] && printf 'true' || printf 'false'; }
+
+path_contains() {
+  case ":$PATH:" in *":$1:"*) return 0 ;; *) return 1 ;; esac
+}
+
+emit_install_json() {
+  local os shell_name agents backend path_ok hts_exists hts_executable fix_line
+  os="$(uname -s 2>/dev/null || printf unknown)"
+  shell_name="$(basename "${SHELL:-unknown}")"
+  agents="$(detect_agent_env)"
+  backend="$(detect_backend "$BACKEND")"
+  path_contains "$BIN_DIR" && path_ok=true || path_ok=false
+  [ -e "$BIN_DIR/hts" ] && hts_exists=true || hts_exists=false
+  [ -x "$BIN_DIR/hts" ] && hts_executable=true || hts_executable=false
+  fix_line="export PATH=\"$BIN_DIR:\$PATH\""
+
+  printf '{'
+  printf '"os":"%s",' "$(json_escape "$os")"
+  printf '"shell":"%s",' "$(json_escape "$shell_name")"
+  printf '"agent_env":"%s",' "$(json_escape "$agents")"
+  printf '"bin_dir":"%s",' "$(json_escape "$BIN_DIR")"
+  printf '"config_dir":"%s",' "$(json_escape "$CONFIG_DIR")"
+  printf '"backend":"%s",' "$(json_escape "$backend")"
+  printf '"path_ok":%s,' "$(json_bool "$path_ok")"
+  printf '"tests":{"hts_exists":%s,"hts_executable":%s},' "$(json_bool "$hts_exists")" "$(json_bool "$hts_executable")"
+  printf '"problems":['
+  local first=true
+  if [ "$path_ok" != true ]; then
+    printf '{"code":"PATH_MISSING_BIN_DIR","message":"binary directory is not on PATH"}'
+    first=false
+  fi
+  if [ "$hts_exists" != true ]; then
+    [ "$first" = true ] || printf ','
+    printf '{"code":"HTS_BINARY_MISSING","message":"hts binary is not installed at target path"}'
+    first=false
+  fi
+  if [ "$hts_executable" != true ]; then
+    [ "$first" = true ] || printf ','
+    printf '{"code":"HTS_NOT_EXECUTABLE","message":"hts binary is missing executable bit"}'
+  fi
+  printf '],'
+  printf '"suggested_fixes":[{"type":"append_shell_profile","command":"%s"}]' "$(json_escape "$fix_line")"
+  printf '}\n'
 }
 
 install_snip() {
@@ -265,7 +335,6 @@ install_deps() {
 
 preflight() {
   need bash
-  need jq
   command -v git >/dev/null 2>&1 || warn "git not found; some workflows like repo inspection and project init may be limited"
 
   if [ "$INSTALL_DEPS" = true ]; then
@@ -406,13 +475,7 @@ install_aliases() {
     cat <<'EOF'
 
 # Haku Token Saver Aliases
-alias cgs='~/bin/caveman_wrapper.sh git-status'
-alias cgl='~/bin/caveman_wrapper.sh git-log'
-alias clint='~/bin/caveman_wrapper.sh lint'
-alias ctest='~/bin/caveman_wrapper.sh test-results'
-alias cscripts='~/bin/caveman_wrapper.sh npm-scripts'
-alias verify-token-saver='~/bin/verify_caveman_setup.sh'
-alias hts='~/bin/hts'
+alias hts='hts'
 # End Haku Token Saver Aliases
 EOF
   )
@@ -444,6 +507,62 @@ verify() {
     "$BIN_DIR/hts" --filters '^git-' >/dev/null 2>&1 || fail "hts --filters failed"
   fi
   ok "install verified"
+}
+
+post_install_tests() {
+  if [ "$DRY_RUN" = true ]; then
+    info "[dry-run] skipping post-install tests"
+    return 0
+  fi
+
+  info "running post-install tests"
+  local pass=0 fail=0
+
+  # Test 1: hts --which
+  if "$BIN_DIR/hts" --which >/dev/null 2>&1; then
+    ok "hts --which ok"; pass=$((pass+1))
+  else
+    warn "hts --which failed"; fail=$((fail+1))
+  fi
+
+  # Test 2: hts --doctor
+  if "$BIN_DIR/hts" --doctor >/dev/null 2>&1; then
+    ok "hts --doctor ok"; pass=$((pass+1))
+  else
+    warn "hts --doctor failed"; fail=$((fail+1))
+  fi
+
+  # Test 3: hts --dry-run
+  if "$BIN_DIR/hts" --dry-run -- echo test >/dev/null 2>&1; then
+    ok "hts --dry-run ok"; pass=$((pass+1))
+  else
+    warn "hts --dry-run failed"; fail=$((fail+1))
+  fi
+
+  # Test 4: hts --self-test
+  if "$BIN_DIR/hts" --self-test >/dev/null 2>&1; then
+    ok "hts --self-test ok"; pass=$((pass+1))
+  else
+    warn "hts --self-test failed"; fail=$((fail+1))
+  fi
+
+  # Test 5: hts --detail compact (if Python available)
+  if command -v python3 >/dev/null 2>&1; then
+    if "$BIN_DIR/hts" --detail compact -- echo test >/dev/null 2>&1; then
+      ok "hts --detail compact ok"; pass=$((pass+1))
+    else
+      warn "hts --detail compact failed"; fail=$((fail+1))
+    fi
+  fi
+
+  if [ "$fail" -eq 0 ]; then
+    ok "all post-install tests passed (pass=$pass)"
+    return 0
+  else
+    warn "post-install tests: pass=$pass fail=$fail"
+    warn "see troubleshooting: docs/TROUBLESHOOTING.md"
+    return 1
+  fi
 }
 
 uninstall() {
@@ -482,6 +601,22 @@ main() {
     return 0
   fi
 
+  if [ "$JSON_OUTPUT" = true ]; then
+    preflight >/dev/null 2>&1
+    install_deps >/dev/null 2>&1
+    write_backend_cache >/dev/null 2>&1
+    install_config >/dev/null 2>&1
+    install_skills >/dev/null 2>&1
+    install_scripts >/dev/null 2>&1
+    install_templates >/dev/null 2>&1
+    install_packs_config >/dev/null 2>&1
+    install_terminal_wrapper >/dev/null 2>&1
+    verify >/dev/null 2>&1
+    post_install_tests >/dev/null 2>&1
+    emit_install_json
+    return 0
+  fi
+
   info "installing Haku Token Saver"
   [ "$DRY_RUN" = true ] && info "(dry run mode)"
 
@@ -500,6 +635,7 @@ main() {
   fi
 
   verify
+  post_install_tests
 
   printf '\n'
   ok "Done."
@@ -508,6 +644,7 @@ main() {
   printf '  2. Verify: hts --doctor\n'
   printf '  3. Check backend: hts --which\n'
   printf '  4. Try: hts -- git status\n'
+  printf '\nFor troubleshooting, see: docs/TROUBLESHOOTING.md\n'
   printf '\nBackend tools installed:\n'
   command -v snip >/dev/null 2>&1 || [ -x "$HOME/.local/bin/snip" ] && printf '  ✓ snip\n' || printf '  ✗ snip (manual install required)\n'
   command -v rtk >/dev/null 2>&1 || [ -x "$HOME/.local/bin/rtk" ] || [ -f "$HOME/.local/lib/node_modules/rtk/package.json" ] && printf '  ✓ rtk\n' || printf '  ✗ rtk (manual install required)\n'

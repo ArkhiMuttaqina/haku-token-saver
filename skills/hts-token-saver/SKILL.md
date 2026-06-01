@@ -34,13 +34,15 @@ Use this skill when modifying HTS repo, installing HTS, adding command routing, 
 
 ## Canonical paths
 
-- Repo: (repo root)
-- Installed config/cache: `~/.config/haku-token-saver/`
-- Installed CLI default: `~/bin/hts`
-- Runtime packs: `~/.config/haku-token-saver/packs/`
-- Runtime filter map: `~/.config/haku-token-saver/filter-map.yaml`
+| Component | Default behavior | Override |
+|-----------|-----------------|----------|
+| **Binaries** (`hts`, wrappers) | Installer chooses first writable: <br>1. `/usr/local/bin` <br>2. `~/.local/bin` <br>3. `~/bin` | `export PREFIX=/custom/bin` |
+| **Config** (filters, templates, backend cache) | `${XDG_CONFIG_HOME:-$HOME/.config}/haku-token-saver` | `export HTS_CONFIG_DIR=/custom/config` |
+| **Hermes skills** | `~/.hermes/skills/development/hts-token-saver` | Hardcoded by Hermes |
 
 Keep compatibility names stable. Do not rename config/cache paths to `~/.config/hts` unless a migration is explicit.
+
+See [`docs/INSTALL.md`](../../docs/INSTALL.md) for the full platform matrix and path rules.
 
 ## Mental model
 
@@ -70,7 +72,14 @@ After raw mutation, summarize with `hts` if output/state is large.
 
 ## Architecture
 
-`hts` is the orchestrator/bootstrapper, not the filter engine.
+HTS is a shell-only tool (Bash). Tested platforms:
+
+- ✅ Linux (Debian/Ubuntu, Arch, Alpine)
+- ✅ macOS
+- ✅ Windows via Git Bash or WSL
+- ❌ Windows PowerShell / CMD (not supported)
+
+Installation: see [`docs/INSTALL.md`](../../docs/INSTALL.md).
 
 Backend priority:
 
@@ -140,6 +149,7 @@ hts --structured -- ps aux
 Prefer short `HTS_*` names in new docs and scripts:
 
 - `HTS_BACKEND` — force backend: `snip|rtk|raw`
+- `HTS_CONFIG_DIR` — override config directory
 - `HTS_STRICT` — fail if selected backend is unavailable
 - `HTS_SNIP_REF` — local snip repo path for filter inventory sync
 - `HTS_RAW_MAX_LINES` — raw fallback line cap

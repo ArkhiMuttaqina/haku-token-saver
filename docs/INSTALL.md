@@ -69,12 +69,26 @@ HTS does **not** support native Windows PowerShell paths like `$HOME\AppData\Loc
 
 ## Verify installation
 
+The installer runs deterministic post-install tests automatically:
+
 ```bash
-hts --doctor
 hts --which
+hts --doctor
+hts --self-test
+hts --dry-run -- git status
+```
+
+For machine-readable agent debugging:
+
+```bash
+./install.sh --json
+hts --doctor --json
+hts --fix-env --json
 ```
 
 Backend priority: `snip > rtk > raw-limited`.
+
+If verification fails, see [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
 ## Uninstall
 
