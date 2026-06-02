@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "templates": {
+    "docker/docker-ps": {
+      "command": ["docker", "ps"],
+      "preferred_source": ["docker", "ps", "--format", "{{json .}}"],
+      "modes": ["compact", "normal", "full"],
+      "fields": ["Names", "Image", "Status", "Ports"]
+    },
+    "docker/docker-images": {
+      "command": ["docker", "images"],
+      "preferred_source": ["docker", "images", "--format", "{{json .}}"],
+      "modes": ["compact", "normal"],
+      "fields": ["Repository", "Tag", "ID", "Size", "Created"]
+    },
+    "git/git-status": {
+      "command": ["git", "status"],
+      "preferred_source": ["git", "status", "--short", "--branch"],
+      "modes": ["compact", "normal"],
+      "fields": ["Branch", "Staged", "Modified", "Untracked"]
+    },
+    "git/git-diff-stat": {
+      "command": ["git", "diff", "--stat"],
+      "preferred_source": ["git", "diff", "--numstat"],
+      "modes": ["compact"],
+      "fields": ["Files changed", "Insertions", "Deletions"]
+    },
+    "kubectl-get-pods": {
+      "command": ["kubectl", "get", "pods", "-A"],
+      "preferred_source": ["kubectl", "get", "pods", "-A", "-o", "wide"],
+      "modes": ["compact", "normal"],
+      "fields": ["Namespace", "Name", "Status", "Restarts", "Node"]
+    },
+    "ps-aux": {
+      "command": ["ps", "aux"],
+      "modes": ["compact"],
+      "fields": ["PID", "USER", "%CPU", "%MEM", "COMMAND"]
+    },
+    "ss-listen": {
+      "command": ["ss", "-tulpn"],
+      "modes": ["compact"],
+      "fields": ["Proto", "Addr", "Port", "Process"]
+    },
+    "systemctl-status": {
+      "command": ["systemctl", "status"],
+      "modes": ["compact"],
+      "fields": ["Unit", "Active", "SubState", "MainPID"]
+    },
+    "npm-test": {
+      "command": ["npm", "test"],
+      "modes": ["compact"],
+      "fields": ["Passed", "Failed", "Skipped", "Duration"]
+    },
+    "pytest": {
+      "command": ["pytest"],
+      "modes": ["compact"],
+      "fields": ["Passed", "Failed", "Warnings", "Duration"]
+    }
+  },
+  "default_mode": "compact",
+  "fallback": "bounded_raw"
+}

@@ -1,0 +1,11 @@
+{{- if d.files }}
+Lint Results:
+{{- for d.files as file }}
+{{file.file}}:
+{{- for file.errors as err }}
+  {{err.line}}:{{err.col}} [{{err.severity}}] {{err.message}}
+{{- end }}
+{{- end }}
+{{- else }}
+✓ No lint errors
+{{- end }}

@@ -1,0 +1,250 @@
+# Command alias mapping to snip filters and template workflows
+# Structure: alias -> snip filters, template workflow
+
+aliases:
+  # Git shortcuts
+  status:
+    snip: [git-status]
+    template: git-status
+
+  log:
+    snip: [git-log]
+    template: git-log
+
+  diff:
+    snip: [git-diff]
+
+  show:
+    snip: [git-show]
+
+  push:
+    snip: [git-push]
+
+  pull:
+    snip: [git-pull]
+
+  fetch:
+    snip: [git-fetch]
+
+  stash:
+    snip: [git-stash]
+
+  branch:
+    snip: [git-branch]
+
+  commit:
+    snip: [git-commit]
+
+  # Test shortcuts
+  test:
+    snip: [pytest, vitest, jest, go-test, dotnet-test, rspec, cargo-nextest, cargo-test]
+    template: test-results
+
+  typecheck:
+    snip: [mypy, basedpyright, tsc]
+
+  package-info:
+    snip: [pnpm-list]
+
+  # Lint shortcuts
+  lint:
+    snip: [eslint, ruff, mypy, rubocop, yamllint, hadolint, shellcheck, markdownlint, golangci-lint]
+    template: lint
+
+  format:
+    snip: [prettier, biome, mix-format, dotnet-format]
+
+  # Build shortcuts
+  build:
+    snip: [next-build, go-build, cargo-build, dotnet-build, xcodebuild, swift-build, trunk-build]
+
+  check:
+    snip: [cargo-check, go-vet, tsc, basedpyright]
+
+  # Package management
+  install:
+    snip: [npm-install, pnpm-install, yarn-install, pip-install, brew-install, cargo-install, composer-install, bundle-install, poetry-install, mise]
+
+  list:
+    snip: [pnpm-list]
+
+  sync:
+    snip: [uv-sync]
+
+  # Docker/K8s
+  ps:
+    snip: [docker-ps]
+
+  logs:
+    snip: [docker-logs, kubectl-logs]
+    template: test-results  # fallback to template for logs too
+
+  build-docker:
+    snip: [docker-build]
+
+  images:
+    snip: [docker-images]
+
+  compose:
+    snip: [docker-compose]
+
+  k8s-get:
+    snip: [kubectl-get]
+
+  # Infra
+  terraform:
+    snip: [terraform, tofu]
+
+  ansible:
+    snip: [ansible-playbook]
+
+  # Database
+  db:
+    snip: [psql, liquibase, prisma]
+
+  # Rails specific
+  rails-migrate:
+    snip: [rails-migrate]
+
+  rails-routes:
+    snip: [rails-routes]
+
+  # Misc useful
+  grep:
+    snip: [grep, rg]
+
+  find:
+    snip: [find]
+
+  diff-tool:
+    snip: [diff]
+
+  json:
+    snip: [jq]
+
+  tree:
+    snip: [tree]
+
+  # CI/CD
+  pr:
+    snip: [gh-pr]
+
+  issue:
+    snip: [gh-issue]
+
+  run:
+    snip: [gh-run]
+
+# Command family detection patterns
+# Maps command name to alias/family
+command_families:
+  git: status
+
+  python: test
+  python3: test
+  pytest: test
+  uv: sync
+  poetry: install
+  pip: install
+  pip3: install
+
+  node: install
+  npm: install
+  pnpm: install
+  yarn: install
+  bun: install
+  vitest: test
+  jest: test
+
+  go: build
+  go-test: test
+  go-vet: check
+  golangci-lint: lint
+
+  rspec: test
+  cargo-nextest: test
+  cargo-test: test
+  dotnet-test: test
+
+  eslint: lint
+  ruff: lint
+  mypy: lint
+  rubocop: lint
+  yamllint: lint
+  hadolint: lint
+  shellcheck: lint
+  markdownlint: lint
+
+  prettier: format
+  biome: format
+  mix-format: format
+  dotnet-format: format
+
+  next-build: build
+  go-build: build
+  cargo-build: build
+  dotnet-build: build
+  xcodebuild: build
+  swift-build: build
+  trunk-build: build
+
+  cargo-check: check
+  tsc: check
+  basedpyright: check
+
+  npm-install: install
+  pnpm-install: install
+  yarn-install: install
+  pip-install: install
+  brew-install: install
+  cargo-install: install
+  composer-install: install
+  bundle-install: install
+  poetry-install: install
+  mise: install
+
+  pnpm-list: list
+  uv-sync: sync
+  npm-outdated: list
+  bun-pm: list
+
+  docker-ps: ps
+  docker-logs: logs
+  docker-build: build-docker
+  docker-images: images
+  docker-compose: compose
+  kubectl-logs: logs
+  kubectl-get: k8s-get
+
+  terraform: terraform
+  tofu: terraform
+  ansible-playbook: ansible
+
+  psql: db
+  liquibase: db
+  prisma: db
+
+  rails-migrate: rails-migrate
+  rails-routes: rails-routes
+
+  grep: grep
+  rg: grep
+  find: find
+  diff: diff-tool
+  jq: json
+  tree: tree
+
+  gh-pr: pr
+  gh-issue: issue
+  gh-run: run
+
+  ping: ping
+  rsync: rsync
+  ssh: ssh
+  systemctl: systemctl
+  df: df
+  du: du
+  ls: ls
+  ps: ps
+  stat: stat
+  wc: wc

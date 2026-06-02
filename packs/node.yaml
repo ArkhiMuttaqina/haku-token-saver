@@ -1,0 +1,40 @@
+name: node
+description: Enable Node.js and TypeScript test/lint/typecheck/install filters
+filters:
+  - eslint
+  - vitest
+  - jest
+  - next-build
+  - npm-install
+  - pnpm-install
+  - yarn-install
+  - pnpm-list
+  - prettier
+  - biome
+  - tsc
+aliases:
+  - test
+  - lint
+  - format
+  - build
+  - install
+  - list
+  - typecheck
+detect:
+  files:
+    - package.json
+    - pnpm-lock.yaml
+    - yarn.lock
+    - bun.lockb
+    - bun.lock
+    - tsconfig.json
+  commands:
+    - node
+    - npm
+    - pnpm
+    - yarn
+    - bun
+    - vitest
+    - jest
+    - eslint
+    - tsc

@@ -1,0 +1,10 @@
+{{- if d.failed }}
+❌ Tests: {{d.passed}}/{{d.total}} passed ({{d.failed}} failed)
+{{- for d.suites as suite }}
+{{- if suite.status == "failed" }}
+  ✗ {{suite.name}} ({{suite.duration}}ms)
+{{- end }}
+{{- end }}
+{{- else }}
+✅ All {{d.total}} tests passed
+{{- end }}

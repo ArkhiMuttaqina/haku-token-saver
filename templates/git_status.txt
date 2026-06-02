@@ -1,0 +1,24 @@
+{{- if d.staged }}
+Staged:
+{{- for d.staged as file }}
+  + {{file}}
+{{- end }}
+{{- end }}
+{{- if d.modified }}
+Modified:
+{{- for d.modified as file }}
+  ~ {{file}}
+{{- end }}
+{{- end }}
+{{- if d.untracked }}
+Untracked:
+{{- for d.untracked as file }}
+  ? {{file}}
+{{- end }}
+{{- end }}
+{{- if d.deleted }}
+Deleted:
+{{- for d.deleted as file }}
+  - {{file}}
+{{- end }}
+{{- end }}
