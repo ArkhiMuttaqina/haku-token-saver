@@ -14,6 +14,8 @@
 ## Additional notes
 - `adaptation-roadmap.md` — adaptation plan from snip/caveman/rtk
 
+Internal maintainer notes, workflow checklists, and personal walkthroughs live under `.hermes/` and are not part of published docs.
+
 ## Pack and config files
 - `../packs/*.yaml` — preset packs for git/node/python/docker
 - `../config/filter-map.yaml` — alias and command-family mapping

@@ -23,7 +23,7 @@ metadata:
     tags: [hts, token-saving, shell, review-packets, git, docker, codex, claude-code, opencode, cursor, hermes]
     homepage: https://github.com/ArkhiMuttaqina/haku-token-saver
     source: https://github.com/ArkhiMuttaqina/haku-token-saver
-    install_docs: docs/ECOSYSTEM_DISTRIBUTION.md
+    install_docs: docs/INSTALL.md
     publish_path: skills/hts-token-saver
     related_skills: [hermes-agent, claude-code, codex, opencode]
 ---
@@ -275,7 +275,7 @@ Caveman syntax reference:
 
 ## Install and reinstall workflow
 
-For user-facing installation, refer to the repository README and `docs/ECOSYSTEM_DISTRIBUTION.md`.
+For user-facing installation, refer to the repository README and `docs/INSTALL.md`.
 
 When testing installer changes locally, uninstall local installed artifacts first, then reinstall:
 
