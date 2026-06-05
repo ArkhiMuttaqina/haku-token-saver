@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 HERMES_DIR="$HOME/.hermes"
 TEMPLATES_DIR="$HOME/templates"
 CLAUDE_DIR="$HOME/.claude"
@@ -235,11 +236,34 @@ install_snip() {
   command -v snip >/dev/null 2>&1 || warn "snip install command completed but snip is not on PATH yet"
 }
 
+install_caveman_official() {
+  if command -v caveman >/dev/null 2>&1; then
+    ok "caveman already installed: $(command -v caveman)"
+    return 0
+  fi
+
+  command -v curl >/dev/null 2>&1 || return 1
+  info "installing caveman via official installer"
+  run_cmd bash -c 'curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.sh | bash'
+
+  if command -v caveman >/dev/null 2>&1 || [ -x "$HOME/.local/bin/caveman" ] || [ -f "$HOME/.local/lib/node_modules/caveman/package.json" ]; then
+    ok "caveman installed"
+    return 0
+  fi
+
+  return 1
+}
+
 install_node_tools() {
   local missing=()
   local npm_prefix
   local npm_bin
-  command -v caveman >/dev/null 2>&1 || missing+=(caveman)
+
+  if ! command -v caveman >/dev/null 2>&1; then
+    install_caveman_official || warn "official caveman installer failed; falling back to npm install"
+  fi
+
+  command -v caveman >/dev/null 2>&1 || [ -x "$HOME/.local/bin/caveman" ] || [ -f "$HOME/.local/lib/node_modules/caveman/package.json" ] || missing+=(caveman)
   command -v rtk >/dev/null 2>&1 || missing+=(rtk)
 
   if [ "${#missing[@]}" -eq 0 ]; then
